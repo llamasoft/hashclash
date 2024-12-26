@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2064,SC2155,SC2012
+set -o pipefail
 
 export BINDIR=$(dirname "$0")/../bin
 export HELPER=$BINDIR/md5_diffpathhelper
