@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 
-export BINDIR=$(dirname $0)/../bin
+export BINDIR=$(dirname "$0")/../bin
 export BIRTHDAYSEARCH=$BINDIR/md5_birthdaysearch
 export HELPER=$BINDIR/md5_diffpathhelper
 export FORWARD=$BINDIR/md5_diffpathforward
 export BACKWARD=$BINDIR/md5_diffpathbackward
 export CONNECT=$BINDIR/md5_diffpathconnect
-export CPUS=`cat /proc/cpuinfo | grep "^processor" | wc -l`
-if [ ! -z $MAXCPUS ]; then
-	if [ $CPUS -gt $MAXCPUS ]; then
+export CPUS=$(cat /proc/cpuinfo | grep "^processor" | wc -l)
+if [ ! -z "$MAXCPUS" ]; then
+	if [ "$CPUS" -gt "$MAXCPUS" ]; then
 		export CPUS=$MAXCPUS
 	fi
 fi
@@ -42,48 +42,48 @@ fi
 if [ "$3" = "" ] ; then
 	# check for CUDA / AVX256 threads
 	echo -n "Detecting worklevel..."
-	worklevel=`$BIRTHDAYSEARCH --inputfile1 "$file1" --inputfile2 "$file2" --hybridbits 0 --pathtyperange 2 --maxblocks 9 --maxmemory 100 --threads $CPUS --cuda_enable |& grep "^Work" -m1 | head -n1 | cut -d'(' -f2 | cut -d'.' -f1`
+	worklevel=$($BIRTHDAYSEARCH --inputfile1 "$file1" --inputfile2 "$file2" --hybridbits 0 --pathtyperange 2 --maxblocks 9 --maxmemory 100 --threads "$CPUS" --cuda_enable |& grep "^Work" -m1 | head -n1 | cut -d'(' -f2 | cut -d'.' -f1)
 	echo ": $worklevel"
-	if [ $worklevel -ge 31 ]; then
-		$BIRTHDAYSEARCH --inputfile1 "$file1" --inputfile2 "$file2" --hybridbits 0 --pathtyperange 2 --maxblocks 7 --maxmemory 4000 --threads $CPUS --cuda_enable
+	if [ "$worklevel" -ge 31 ]; then
+		$BIRTHDAYSEARCH --inputfile1 "$file1" --inputfile2 "$file2" --hybridbits 0 --pathtyperange 2 --maxblocks 7 --maxmemory 4000 --threads "$CPUS" --cuda_enable
 	else
-		$BIRTHDAYSEARCH --inputfile1 "$file1" --inputfile2 "$file2" --hybridbits 0 --pathtyperange 2 --maxblocks 9 --maxmemory 100 --threads $CPUS --cuda_enable
+		$BIRTHDAYSEARCH --inputfile1 "$file1" --inputfile2 "$file2" --hybridbits 0 --pathtyperange 2 --maxblocks 9 --maxmemory 100 --threads "$CPUS" --cuda_enable
 	fi
 	notify "Birthday search completed."
 
 	PREFIX1=file1.bin
 	PREFIX2=file2.bin
-	COLL1=`ls data/birthdayblock1_*.bin | head -n1`
-	if [ ! -f $COLL1 ]; then
+	COLL1=$(ls data/birthdayblock1_*.bin | head -n1)
+	if [ ! -f "$COLL1" ]; then
 		echo "Birthday block file $COLL1 not found"
 		exit 1
 	fi
-	COLL2=`echo $COLL1 | sed "s/birthdayblock1/birthdayblock2/"`
+	COLL2=$(echo "$COLL1" | sed "s/birthdayblock1/birthdayblock2/")
 
-	cat $PREFIX1 $COLL1 > file1_0.bin
-	cat $PREFIX2 $COLL2 > file2_0.bin
+	cat $PREFIX1 "$COLL1" > file1_0.bin
+	cat $PREFIX2 "$COLL2" > file2_0.bin
 else
 	if [ "$4" != "" ]; then
-		cp $file1 file1_0.bin
-		cp $file2 file2_0.bin
+		cp "$file1" file1_0.bin
+		cp "$file2" file2_0.bin
 	fi
 fi
 
 function doforward {
-	$FORWARD -w $1 -f $1/lowerpath.bin.gz --normalt01 -t 1 --trange $(($TTT-3)) --threads $CPUS || return 1
-	$FORWARD -w $1 -a 500000 -t $(($TTT-1)) --trange 0 --threads $CPUS || return 1
+	$FORWARD -w "$1" -f "$1"/lowerpath.bin.gz --normalt01 -t 1 --trange $(($TTT-3)) --threads "$CPUS" || return 1
+	$FORWARD -w "$1" -a 500000 -t $(($TTT-1)) --trange 0 --threads "$CPUS" || return 1
 }
 
 function dobackward {
-	$BACKWARD -w $1 -f $1/upperpath.bin.gz -t 36 --trange 6 -a 65536 -q 128 --threads $CPUS || return 1
-	$BACKWARD -w $1 -t 29 -a 100000 --trange 8 --threads $CPUS || return 1
-	$BACKWARD -w $1 -t 20 -a 16384 --threads $CPUS || return 1
-	$BACKWARD -w $1 -t 19 -a 500000 --trange $((18-$TTT-3)) --threads $CPUS || return 1
+	$BACKWARD -w "$1" -f "$1"/upperpath.bin.gz -t 36 --trange 6 -a 65536 -q 128 --threads "$CPUS" || return 1
+	$BACKWARD -w "$1" -t 29 -a 100000 --trange 8 --threads "$CPUS" || return 1
+	$BACKWARD -w "$1" -t 20 -a 16384 --threads "$CPUS" || return 1
+	$BACKWARD -w "$1" -t 19 -a 500000 --trange $((18-$TTT-3)) --threads "$CPUS" || return 1
 }
 
 function testcoll {
 	for f in $1/coll1_*; do
-		if [ -e `echo $f | sed s/coll1/coll2/` ]; then return 0; fi
+		if [ -e $(echo "$f" | sed s/coll1/coll2/) ]; then return 0; fi
 	done
 	return 1
 }
@@ -91,8 +91,8 @@ function testcoll {
 function doconnect {
 	let c=0
 
-	mkdir $1/connect
-	$CONNECT -w $1/connect -t $TTT --inputfilelow $1/paths$(($TTT-1))_0of1.bin.gz --inputfilehigh $1/paths$(($TTT+4))_0of1.bin.gz --threads $CPUS &
+	mkdir "$1"/connect
+	$CONNECT -w "$1"/connect -t $TTT --inputfilelow "$1"/paths$(($TTT-1))_0of1.bin.gz --inputfilehigh "$1"/paths$(($TTT+4))_0of1.bin.gz --threads "$CPUS" &
 	CPID="$!"
 
 	let contime=0
@@ -108,10 +108,10 @@ function doconnect {
 }
 
 function docollfind {
-	$HELPER -w $1 --findcoll $2/bestpaths.bin.gz --threads $CPUS |& tee $2/collfind.log &
+	$HELPER -w "$1" --findcoll "$2"/bestpaths.bin.gz --threads "$CPUS" |& tee "$2"/collfind.log &
 	CPID=$!
 	while true; do
-		if testcoll $1 ; then break; fi
+		if testcoll "$1" ; then break; fi
 		sleep 1
 	done
 	sleep 3
@@ -124,32 +124,32 @@ function dostepk {
 	echo "[*] Starting step $k"
 	sleep 1
 
-	rm -r workdir$k 2>/dev/null
-	mkdir workdir$k
+	rm -r workdir"$k" 2>/dev/null
+	mkdir workdir"$k"
 
-	echo $$ > workdir$k/pid
+	echo $$ > workdir"$k"/pid
 	set -o pipefail
-	$HELPER -w workdir$k --startnearcollision file1_$k.bin file2_$k.bin --pathtyperange 2 |& tee workdir$k/start.log
+	$HELPER -w workdir"$k" --startnearcollision file1_"$k".bin file2_"$k".bin --pathtyperange 2 |& tee workdir"$k"/start.log
 	if [[ $? -ne 0 ]]; then
-	    touch workdir$k/killed
+	    touch workdir"$k"/killed
 	    exit
 	fi
 
-	cp *.cfg workdir$k
+	cp *.cfg workdir"$k"
 
-	doforward workdir$k |& tee workdir$k/forward.log
-	dobackward workdir$k |& tee workdir$k/backward.log
+	doforward workdir"$k" |& tee workdir"$k"/forward.log
+	dobackward workdir"$k" |& tee workdir"$k"/backward.log
 
-	doconnect workdir$k |& tee workdir$k/connect.log
+	doconnect workdir"$k" |& tee workdir"$k"/connect.log
 
-	docollfind workdir$k workdir$k/connect
+	docollfind workdir"$k" workdir"$k"/connect
 
 	for f in workdir$k/coll1_*; do
-		if [ -e `echo $f | sed s/coll1/coll2/` ]; then
-			cat file1_$k.bin $f > file1_$(($k+1)).bin
-			cat file2_$k.bin `echo $f | sed s/coll1/coll2/` > file2_$(($k+1)).bin
-			cp file1_$(($k+1)).bin ${file1}.coll
-			cp file2_$(($k+1)).bin ${file2}.coll
+		if [ -e $(echo "$f" | sed s/coll1/coll2/) ]; then
+			cat file1_"$k".bin "$f" > file1_$(($k+1)).bin
+			cat file2_"$k".bin $(echo "$f" | sed s/coll1/coll2/) > file2_$(($k+1)).bin
+			cp file1_$(($k+1)).bin "${file1}".coll
+			cp file2_$(($k+1)).bin "${file2}".coll
 			break;
 		fi
 	done
@@ -168,11 +168,11 @@ function auto_kill
 		let remaining=$remaining-10
 	done
 
-	pid=$(<$pidfile)
+	pid=$(<"$pidfile")
 	echo "[*] Timeout reached. Killing process with pid $pid"
-	touch $killfile
-	pkill -KILL -P $pid &>/dev/null
-	kill -KILL $pid &>/dev/null
+	touch "$killfile"
+	pkill -KILL -P "$pid" &>/dev/null
+	kill -KILL "$pid" &>/dev/null
 }
 
 #cp file1.bin file1_0.bin
@@ -214,10 +214,10 @@ while true; do
 
 
 	# Check if the collision has been generated
-	if [ -f ${file1}.coll -a -f ${file2}.coll ]; then
-		if [ `cat ${file1}.coll | md5sum | cut -d' ' -f1` = `cat ${file2}.coll | md5sum | cut -d' ' -f1` ]; then
+	if [ -f "${file1}".coll -a -f "${file2}".coll ]; then
+		if [ $(cat "${file1}".coll | md5sum | cut -d' ' -f1) = $(cat "${file2}".coll | md5sum | cut -d' ' -f1) ]; then
 			notify "Collision generated: ${file1}.coll ${file2}.coll"
-			md5sum ${file1}.coll ${file2}.coll
+			md5sum "${file1}".coll "${file2}".coll
 			break
 		fi
 	fi
