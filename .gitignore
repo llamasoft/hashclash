@@ -28,6 +28,10 @@
 *.out
 *.app
 
+# Boost
+/boost-*
+/boost_*
+
 # http://www.gnu.org/software/automake
 
 Makefile.in
