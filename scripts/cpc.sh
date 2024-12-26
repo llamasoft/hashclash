@@ -7,9 +7,9 @@ export HELPER=$BINDIR/md5_diffpathhelper
 export FORWARD=$BINDIR/md5_diffpathforward
 export BACKWARD=$BINDIR/md5_diffpathbackward
 export CONNECT=$BINDIR/md5_diffpathconnect
-export CPUS=$(grep -c "^processor" /proc/cpuinfo)
+export CPUS=$(grep -c "^processor" /proc/cpuinfo || echo 0)
 if [[ -n "$MAXCPUS" ]]; then
-	if (( CPUS > MAXCPUS )); then
+	if (( !CPUS || CPUS > MAXCPUS )); then
 		export CPUS=$MAXCPUS
 	fi
 fi
