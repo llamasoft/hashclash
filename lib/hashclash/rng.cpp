@@ -19,49 +19,32 @@
 
 #include <time.h>
 #include <iostream>
+#include <memory>
+#include <exception>
+#include <random>
 #include "rng.hpp"
 
-#if defined(__linux__) || defined (__FreeBSD__)
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <fcntl.h>    // open
-#include <unistd.h>   // read, close
 namespace hashclash {
 	void getosrnd(uint32 buf[256])
 	{
-		int fd;
-		if ((fd = open("/dev/urandom", O_RDONLY)) < 0) return;
-		read(fd, reinterpret_cast<char*>(buf), 256*4);
-		close(fd);
+		std::unique_ptr<std::random_device> rd;
+		try
+		{
+			// Explicitly request /dev/urandom as a randomness source if available.
+			// On Windows, this constructor argument is entirely ignored.
+			rd = std::unique_ptr<std::random_device>(new std::random_device("/dev/urandom"));
+		} catch (const std::exception &e) {
+			// If not available, use the default randomness source instead.
+			// Note, it may have finite entropy, but it's better than nothing.
+			rd = std::unique_ptr<std::random_device>(new std::random_device());
+		}
+		// Resample the randomness to uint32 regardless of the source's default range.
+		// This may result in multiple calls to the random device.
+		std::uniform_int_distribution<uint32> rng;
+		for (auto i = 0; i < 256; i++) {
+			buf[i] = rng(*rd);
+		}
 	}
-}
-#elif defined(WIN32)
-#include <windows.h>
-#include <wincrypt.h>
-namespace hashclash {
-	void getosrnd(uint32 buf[256])
-	{
-		HCRYPTPROV g_hCrypt;
-		if(!CryptAcquireContext(&g_hCrypt,NULL,NULL,PROV_RSA_FULL,CRYPT_VERIFYCONTEXT))
-			return;
-		CryptGenRandom(g_hCrypt,256*4,reinterpret_cast<BYTE*>(buf));
-		CryptReleaseContext(g_hCrypt,0);
-	}
-}
-#else
-namespace hashclash {
-	void getosrnd(uint32 buf[256])
-	{
-		std::cout << "Warning: no OS randomness!" << std::endl;
-		// without OS randomness
-		// use fact that buf is uninitialized
-	}
-}
-#endif
-
-namespace hashclash {
-
-	void getosrnd(uint32 buf[256]);
 
 	uint32 seedd;
 	uint32 seed32_1;
