@@ -72,7 +72,7 @@ cat "${prefixfile}" "${collfile}" > partial_solution.txt
 echo "Starting search for second near-collision block in 10 seconds..."
 sleep 10
 
-$TEXTCOLL "${MDIFF[@]}" "${SECONDBLOCKBYTES[@]}" --secondblock --alphabet "$ALPHABET" --prefixfile partial_solution.txt || exit 1
+( $TEXTCOLL "${MDIFF[@]}" "${SECONDBLOCKBYTES[@]}" --secondblock --alphabet "$ALPHABET" --prefixfile partial_solution.txt | tee secondblock.log ) || exit 1
 
 
 
