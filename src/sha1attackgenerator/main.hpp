@@ -34,38 +34,34 @@
 using namespace hashclash;
 using namespace std;
 
-
 struct parameters_type {
-	parameters_type()
-	{
-		usetunnelbitconditions = false;
-		tunneldeepanalysis = false;
-		changebitstat = false;
-		mecarry = 0;
-		threebittunnels = true;
-		simpletunnels = false;
-		mintunnelpov = -1;
-	}
+    parameters_type() {
+        usetunnelbitconditions = false;
+        tunneldeepanalysis = false;
+        changebitstat = false;
+        mecarry = 0;
+        threebittunnels = true;
+        simpletunnels = false;
+        mintunnelpov = -1;
+    }
 
-	vector<string> rnd234_m_bitrelationfiles;
-	string rnd234_pathfile; // single path
-	string rnd1_pathsfile; // possibly multiple paths allowing choice without m bitrelation contradictions
-	unsigned tend_rnd1_me;
-			
-	unsigned mod,index;
-	uint32 m_mask[80];
-	bool usetunnelbitconditions;
-	std::string tunnelfile;
-	unsigned mecarry;
-	bool tunneldeepanalysis;
-	bool changebitstat;
-	bool tunnelfilterbitcondition;
-	bool threebittunnels;
-	bool simpletunnels;
-	int mintunnelpov;
-	void show_mdiffs()
-	{
-	}
+    vector<string> rnd234_m_bitrelationfiles;
+    string rnd234_pathfile; // single path
+    string rnd1_pathsfile;  // possibly multiple paths allowing choice without m bitrelation contradictions
+    unsigned tend_rnd1_me;
+
+    unsigned mod, index;
+    uint32 m_mask[80];
+    bool usetunnelbitconditions;
+    std::string tunnelfile;
+    unsigned mecarry;
+    bool tunneldeepanalysis;
+    bool changebitstat;
+    bool tunnelfilterbitcondition;
+    bool threebittunnels;
+    bool simpletunnels;
+    int mintunnelpov;
+    void show_mdiffs() {}
 };
 extern std::string workdir;
 extern sha1differentialpath maindiffpath;
@@ -73,28 +69,31 @@ extern sha1messagespace mainmespace;
 extern parameters_type mainparameters;
 const int offset = 4;
 
-unsigned load_block(istream& i, uint32 block[]);
-void save_block(ostream& o, uint32 block[]);
+unsigned load_block(istream &i, uint32 block[]);
+void save_block(ostream &o, uint32 block[]);
 
-int collisionfinding(parameters_type& parameters);
-
+int collisionfinding(parameters_type &parameters);
 
 // filters.cpp
-void mespace_to_pathbitrelationsmatrix(const sha1messagespace& mespace, vector< vector< vector<uint32> > >& pathbitrelationsmatrix);
-void random_me(uint32 me[80], const vector< vector< vector<uint32> > >& pathbitrelationsmatrix);
+void mespace_to_pathbitrelationsmatrix(const sha1messagespace &mespace, vector<vector<vector<uint32>>> &pathbitrelationsmatrix);
+void random_me(uint32 me[80], const vector<vector<vector<uint32>>> &pathbitrelationsmatrix);
 
-void filter_tunnels_bitconditions(vector< sha1differentialpath >& tunnels, const sha1differentialpath& path);
-bool filter_tunnel_bitrelations(const sha1differentialpath& tunnel, const vector< vector<uint32> >& bitrels);
-void filter_tunnels_bitrelations(vector< sha1differentialpath >& tunnels, const vector< vector<uint32> >& bitrels);
+void filter_tunnels_bitconditions(vector<sha1differentialpath> &tunnels, const sha1differentialpath &path);
+bool filter_tunnel_bitrelations(const sha1differentialpath &tunnel, const vector<vector<uint32>> &bitrels);
+void filter_tunnels_bitrelations(vector<sha1differentialpath> &tunnels, const vector<vector<uint32>> &bitrels);
 
 // program_generator.cpp
-string mask2bit_to_string(const string& variable, const uint32 mask, const unsigned bit);
+string mask2bit_to_string(const string &variable, const uint32 mask, const unsigned bit);
 void generate_program();
 
 // tunnel_analysis.cpp
-unsigned analyze_bc_tunnel(const sha1differentialpath& tunnel);
-unsigned analyze_tunnel(const sha1differentialpath& tunnel, bool verbose = false, bool deepanalyze = false);
-void analyze_tunnels_diffpath(const sha1differentialpath& mypath, const vector< vector<uint32> >& bitrels, vector<sha1differentialpath> tunnels = vector<sha1differentialpath>());
+unsigned analyze_bc_tunnel(const sha1differentialpath &tunnel);
+unsigned analyze_tunnel(const sha1differentialpath &tunnel, bool verbose = false, bool deepanalyze = false);
+void analyze_tunnels_diffpath(
+    const sha1differentialpath &mypath,
+    const vector<vector<uint32>> &bitrels,
+    vector<sha1differentialpath> tunnels = vector<sha1differentialpath>()
+);
 
 // checkoppaths.cpp
 void checkokpaths();

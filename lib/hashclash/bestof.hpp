@@ -28,55 +28,53 @@
 
 namespace hashclash {
 
-	template<typename _value_type, typename _count_type = uint64>
-	class bestof {
-	public:
-		typedef _value_type value_type;
-		typedef _count_type count_type;
-		typedef bestof<value_type, count_type> my_type;
-		typedef std::map<value_type, count_type> map_type;
-		typedef std::vector< std::pair<value_type, count_type> > vector_type;
-		typedef typename vector_type::const_iterator const_iterator;
+template <typename _value_type, typename _count_type = uint64> class bestof {
+  public:
+    typedef _value_type value_type;
+    typedef _count_type count_type;
+    typedef bestof<value_type, count_type> my_type;
+    typedef std::map<value_type, count_type> map_type;
+    typedef std::vector<std::pair<value_type, count_type>> vector_type;
+    typedef typename vector_type::const_iterator const_iterator;
 
-		count_type& operator[](const value_type& v) { return itemtocount[v]; }
-		const count_type& operator[](const value_type& v) const { return itemtocount[v]; }
+    count_type &operator[](const value_type &v) { return itemtocount[v]; }
+    const count_type &operator[](const value_type &v) const { return itemtocount[v]; }
 
-		typename map_type::size_type size() const {
-			return itemtocount.size();
-		}
-		void clear() {
-			itemtocount.clear();
-			counttoitem.clear();
-		}
-		void invert() {
-			counttoitem.reserve(size());
-			for (typename map_type::const_iterator cit = itemtocount.begin(); cit != itemtocount.end(); ++cit)
-				counttoitem.push_back( *cit );
-			sort(counttoitem.begin(), counttoitem.end(), bestof_less());
-		}
-		const_iterator begin() {
-			if (counttoitem.size() != size()) invert();
-			return counttoitem.begin();
-		}
-		const_iterator end() {
-			if (counttoitem.size() != size()) invert();
-			return counttoitem.end();
-		}
+    typename map_type::size_type size() const { return itemtocount.size(); }
+    void clear() {
+        itemtocount.clear();
+        counttoitem.clear();
+    }
+    void invert() {
+        counttoitem.reserve(size());
+        for (typename map_type::const_iterator cit = itemtocount.begin(); cit != itemtocount.end(); ++cit) {
+            counttoitem.push_back(*cit);
+        }
+        sort(counttoitem.begin(), counttoitem.end(), bestof_less());
+    }
+    const_iterator begin() {
+        if (counttoitem.size() != size()) {
+            invert();
+        }
+        return counttoitem.begin();
+    }
+    const_iterator end() {
+        if (counttoitem.size() != size()) {
+            invert();
+        }
+        return counttoitem.end();
+    }
 
-		map_type itemtocount;
-		vector_type counttoitem;
+    map_type itemtocount;
+    vector_type counttoitem;
 
-		struct bestof_less
-			: public std::binary_function<std::pair<value_type, count_type>, std::pair<value_type, count_type>, bool>
-		{
-			bool operator()(const std::pair<value_type, count_type>& _Left, const std::pair<value_type, count_type>& _Right) const
-			{
-				return _Left.second > _Right.second;
-			}
-		};
-
-	};
+    struct bestof_less : public std::binary_function<std::pair<value_type, count_type>, std::pair<value_type, count_type>, bool> {
+        bool operator()(const std::pair<value_type, count_type> &_Left, const std::pair<value_type, count_type> &_Right) const {
+            return _Left.second > _Right.second;
+        }
+    };
+};
 
 } // namespace hashclash
 
-#endif //HASHCLASH_BESTOF_HPP
+#endif // HASHCLASH_BESTOF_HPP

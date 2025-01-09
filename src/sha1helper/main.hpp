@@ -35,34 +35,32 @@ using namespace std;
 
 extern std::string workdir;
 
-unsigned load_block(istream& i, uint32 block[]);
-void save_block(ostream& o, uint32 block[]);
+unsigned load_block(istream &i, uint32 block[]);
+void save_block(ostream &o, uint32 block[]);
 
 struct parameters_type {
-	unsigned mod,index;
-	uint32 m_mask[80];
-	string infile1, infile2, outfile1, outfile2;
-	int cpuaffinity;
-	unsigned split;
-	vector<string> files;
-	bool unique;
-	int filtert;
-	int seli;
-	bool invert;
+    unsigned mod, index;
+    uint32 m_mask[80];
+    string infile1, infile2, outfile1, outfile2;
+    int cpuaffinity;
+    unsigned split;
+    vector<string> files;
+    bool unique;
+    int filtert;
+    int seli;
+    bool invert;
 
-	void show_mdiffs()
-	{
-	}
+    void show_mdiffs() {}
 };
 
-int convert(parameters_type& parameters);
-int split(parameters_type& parameters);
-int join(parameters_type& parameters);
-int pathfromtext(parameters_type& parameters);
-int showmespaceconditions(parameters_type& parameters);
+int convert(parameters_type &parameters);
+int split(parameters_type &parameters);
+int join(parameters_type &parameters);
+int pathfromtext(parameters_type &parameters);
+int showmespaceconditions(parameters_type &parameters);
 
-int filterfeasible(parameters_type& parameters);
+int filterfeasible(parameters_type &parameters);
 
-int selectpath(parameters_type& parameters);
+int selectpath(parameters_type &parameters);
 
 #endif // MAIN_HPP

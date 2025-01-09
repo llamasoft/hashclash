@@ -41,179 +41,183 @@
 using namespace hashclash;
 using namespace std;
 
-void random_permutation(vector<differentialpath>& paths)
-{
-	// use a pseudo-random permutation fixed by the number of paths
-	seed(paths.size());
-	for (unsigned i = 0; i < paths.size(); ++i)
-	{
-		unsigned k = xrng64() % paths.size();
-		paths[i].swap(paths[k]);
-	}
-	addseed(time(NULL));
+void random_permutation(vector<differentialpath> &paths) {
+    // use a pseudo-random permutation fixed by the number of paths
+    seed(paths.size());
+    for (unsigned i = 0; i < paths.size(); ++i) {
+        unsigned k = xrng64() % paths.size();
+        paths[i].swap(paths[k]);
+    }
+    addseed(time(NULL));
 }
 
-inline std::string pathsstring(const std::string& basepath, unsigned modi, unsigned modn)
-{
-	return workdir +  "/"  + basepath 
-		+ "_" + boost::lexical_cast<std::string>(modi) 
-		+ "of" + boost::lexical_cast<std::string>(modn);
+inline std::string pathsstring(const std::string &basepath, unsigned modi, unsigned modn) {
+    return workdir + "/" + basepath + "_" + boost::lexical_cast<std::string>(modi) + "of" + boost::lexical_cast<std::string>(modn);
 }
 
-
-
-
-progress_display* dostep_progress = 0;
+progress_display *dostep_progress = 0;
 volatile unsigned dostep_index = 0;
 struct dostep_thread {
-	dostep_thread(vector<differentialpath>& in, path_container_autobalance& out)
-		: pathsin(in), container(out)   
-	{}
-	vector<differentialpath>& pathsin;
-	path_container_autobalance& container;
-	md5_backward_thread worker;
-	void operator()() {
-		try {
-			while (true) {
-				mut.lock();
+    dostep_thread(vector<differentialpath> &in, path_container_autobalance &out)
+        : pathsin(in), container(out) {}
+    vector<differentialpath> &pathsin;
+    path_container_autobalance &container;
+    md5_backward_thread worker;
+    void operator()() {
+        try {
+            while (true) {
+                mut.lock();
 
-				unsigned i = dostep_index;
-				if (i >= pathsin.size())
-				{
-					mut.unlock();
-					break;
-				}
-				unsigned cnt = std::max<unsigned>(1, std::min<unsigned>(16, (pathsin.size() - i)/128 ));
-				unsigned iend = i + cnt;
+                unsigned i = dostep_index;
+                if (i >= pathsin.size()) {
+                    mut.unlock();
+                    break;
+                }
+                unsigned cnt = std::max<unsigned>(1, std::min<unsigned>(16, (pathsin.size() - i) / 128));
+                unsigned iend = i + cnt;
 
-				if (cnt != 0)
-					(*dostep_progress) += cnt;
-				dostep_index = iend;
-				mut.unlock();
+                if (cnt != 0) {
+                    (*dostep_progress) += cnt;
+                }
+                dostep_index = iend;
+                mut.unlock();
 
-				for (; i < iend; ++i)
-					worker.md5_backward_differential_step(pathsin[i], container);
-			}
-		} catch (std::exception & e) { cerr << "Worker thread: caught exception:" << endl << e.what() << endl; } catch (...) {}
-	}       
+                for (; i < iend; ++i) {
+                    worker.md5_backward_differential_step(pathsin[i], container);
+                }
+            }
+        } catch (std::exception &e) {
+            cerr << "Worker thread: caught exception:" << endl << e.what() << endl;
+        } catch (...) {
+        }
+    }
 };
-void dostep_threaded(vector<differentialpath>& in, path_container_autobalance& out)
-{
-	dostep_index = 0;
-	std::string tstring = "t=" + boost::lexical_cast<std::string>(out.t) + ": ";
-	if (tstring.size() == 5) tstring += " ";
-	if (out.estimatefactor)
-		dostep_progress = new progress_display(in.size(), true, cout, tstring, "      ", "e     ");
-	else
-		dostep_progress = new progress_display(in.size(), true, cout, tstring, "      ", "      ");
-	boost::thread_group mythreads;
-	for (unsigned i = 0; i < out.threads; ++i)
-		mythreads.create_thread(dostep_thread(in,out));
-	mythreads.join_all();
-	if (dostep_progress->expected_count() != dostep_progress->count())
-		*dostep_progress += dostep_progress->expected_count() - dostep_progress->count();
-	delete dostep_progress;
+void dostep_threaded(vector<differentialpath> &in, path_container_autobalance &out) {
+    dostep_index = 0;
+    std::string tstring = "t=" + boost::lexical_cast<std::string>(out.t) + ": ";
+    if (tstring.size() == 5) {
+        tstring += " ";
+    }
+    if (out.estimatefactor) {
+        dostep_progress = new progress_display(in.size(), true, cout, tstring, "      ", "e     ");
+    } else {
+        dostep_progress = new progress_display(in.size(), true, cout, tstring, "      ", "      ");
+    }
+    boost::thread_group mythreads;
+    for (unsigned i = 0; i < out.threads; ++i) {
+        mythreads.create_thread(dostep_thread(in, out));
+    }
+    mythreads.join_all();
+    if (dostep_progress->expected_count() != dostep_progress->count()) {
+        *dostep_progress += dostep_progress->expected_count() - dostep_progress->count();
+    }
+    delete dostep_progress;
 }
 
-
-
 vector<differentialpath> pathscache;
-void dostep(path_container_autobalance& container, bool savetocache)
-{
-	const unsigned t = container.t;
-	const unsigned modn = container.modn;
-	const unsigned modi = container.modi;
+void dostep(path_container_autobalance &container, bool savetocache) {
+    const unsigned t = container.t;
+    const unsigned modn = container.modn;
+    const unsigned modi = container.modi;
 
-	vector< differentialpath > pathsin, pathstmp, pathsout;
-	if (pathscache.size() != 0) {
-		pathsin.swap(pathscache);
-		random_permutation(pathsin);
-	} else if (container.newinputpath) {
-		differentialpath path;
-		path.offset = - int(t) + 3;
-		path.path.resize(4);
-		pathsin.push_back( path );
-		cout << "Generated 1 new path." << endl;
-	} else if (container.inputfile.size() == 0) {
-		for (unsigned k = 0; k < modn; ++k)
-		{
-			try {
-				std::string filename = pathsstring("paths" + boost::lexical_cast<std::string>(t+1), k, modn);
-				hashclash::timer loadtime(true);
-				cout << "Loading " << filename << "..." << flush;
-				load_gz(pathstmp, filename, binary_archive);
-				random_permutation(pathstmp);
-				for (unsigned j = modi; j < pathstmp.size(); j += modn)
-					pathsin.push_back(pathstmp[j]);
-				cout << "done: " << pathstmp.size() << " (work:" << pathsin.size() << "). (" << loadtime.time() << "s)" << endl;
-			} catch(...) {
-				cout << "failed." << endl;
-			}
-		}
-	} else {
-		bool failed = false;
-		try {
-			hashclash::timer loadtime(true);
-			cout << "Loading " << container.inputfile << "..." << flush;
-			load_gz(pathstmp, binary_archive, container.inputfile);
-			random_permutation(pathstmp);
-			for (unsigned j = modi; j < pathstmp.size(); j += modn)
-				pathsin.push_back(pathstmp[j]);
-			cout << "done: " << pathsin.size() << ". (" << loadtime.time() << "s)" << endl;
-		} catch(...) {
-			failed = true;
-			cout << "failed." << endl;
-		}
-		if (failed) {
-			try {
-				hashclash::timer loadtime(true);
-				cout << "Loading (text) " << container.inputfile << "..." << flush;
-				load_gz(pathstmp, text_archive, container.inputfile);
-				random_permutation(pathstmp);
-				for (unsigned j = modi; j < pathstmp.size(); j += modn)
-					pathsin.push_back(pathstmp[j]);
-				cout << "done: " << pathsin.size() << ". (" << loadtime.time() << "s)" << endl;
-			} catch(...) {
-				cout << "failed." << endl;
-			}
-		}
-	}
-	if (container.showinputpaths)
-		for (unsigned r = 0; r < pathsin.size(); ++r)
-			show_path(pathsin[r], container.m_diff);
+    vector<differentialpath> pathsin, pathstmp, pathsout;
+    if (pathscache.size() != 0) {
+        pathsin.swap(pathscache);
+        random_permutation(pathsin);
+    } else if (container.newinputpath) {
+        differentialpath path;
+        path.offset = -int(t) + 3;
+        path.path.resize(4);
+        pathsin.push_back(path);
+        cout << "Generated 1 new path." << endl;
+    } else if (container.inputfile.size() == 0) {
+        for (unsigned k = 0; k < modn; ++k) {
+            try {
+                std::string filename = pathsstring("paths" + boost::lexical_cast<std::string>(t + 1), k, modn);
+                hashclash::timer loadtime(true);
+                cout << "Loading " << filename << "..." << flush;
+                load_gz(pathstmp, filename, binary_archive);
+                random_permutation(pathstmp);
+                for (unsigned j = modi; j < pathstmp.size(); j += modn) {
+                    pathsin.push_back(pathstmp[j]);
+                }
+                cout << "done: " << pathstmp.size() << " (work:" << pathsin.size() << "). (" << loadtime.time() << "s)" << endl;
+            } catch (...) {
+                cout << "failed." << endl;
+            }
+        }
+    } else {
+        bool failed = false;
+        try {
+            hashclash::timer loadtime(true);
+            cout << "Loading " << container.inputfile << "..." << flush;
+            load_gz(pathstmp, binary_archive, container.inputfile);
+            random_permutation(pathstmp);
+            for (unsigned j = modi; j < pathstmp.size(); j += modn) {
+                pathsin.push_back(pathstmp[j]);
+            }
+            cout << "done: " << pathsin.size() << ". (" << loadtime.time() << "s)" << endl;
+        } catch (...) {
+            failed = true;
+            cout << "failed." << endl;
+        }
+        if (failed) {
+            try {
+                hashclash::timer loadtime(true);
+                cout << "Loading (text) " << container.inputfile << "..." << flush;
+                load_gz(pathstmp, text_archive, container.inputfile);
+                random_permutation(pathstmp);
+                for (unsigned j = modi; j < pathstmp.size(); j += modn) {
+                    pathsin.push_back(pathstmp[j]);
+                }
+                cout << "done: " << pathsin.size() << ". (" << loadtime.time() << "s)" << endl;
+            } catch (...) {
+                cout << "failed." << endl;
+            }
+        }
+    }
+    if (container.showinputpaths) {
+        for (unsigned r = 0; r < pathsin.size(); ++r) {
+            show_path(pathsin[r], container.m_diff);
+        }
+    }
 
-	std::string tstring = "t=" + boost::lexical_cast<std::string>(t) + ": ";
-	if (tstring.size() == 5) tstring += " ";
-	
-	if (container.estimatefactor != 0) {
-		cout << "Estimating maxcond for upper bound " << unsigned(double(container.ubound)*container.estimatefactor)
-			<< " (=" << container.ubound << " * " << container.estimatefactor << ")..." << endl;
-		dostep_threaded(pathsin, container);
-//		progress_display show_progress(pathsin.size(), true, cout, tstring, "      ", "e     ");
-//		for (unsigned k = 0; k < pathsin.size(); ++k,++show_progress)
-//			md5_backward_differential_step(pathsin[k], container);
-		container.finish_estimate();
-		cout << "Found maxcond = " << container.maxcond << endl;
-	}
+    std::string tstring = "t=" + boost::lexical_cast<std::string>(t) + ": ";
+    if (tstring.size() == 5) {
+        tstring += " ";
+    }
 
-	dostep_threaded(pathsin, container);
-//	progress_display show_progress(pathsin.size(), true, cout, tstring, "      ", "      ");
-//	for (unsigned k = 0; k < pathsin.size(); ++k,++show_progress)
-//		md5_backward_differential_step(pathsin[k], container);
+    if (container.estimatefactor != 0) {
+        cout << "Estimating maxcond for upper bound " << unsigned(double(container.ubound) * container.estimatefactor)
+             << " (=" << container.ubound << " * " << container.estimatefactor << ")..." << endl;
+        dostep_threaded(pathsin, container);
+        //		progress_display show_progress(pathsin.size(), true, cout, tstring, "      ", "e     ");
+        //		for (unsigned k = 0; k < pathsin.size(); ++k,++show_progress)
+        //			md5_backward_differential_step(pathsin[k], container);
+        container.finish_estimate();
+        cout << "Found maxcond = " << container.maxcond << endl;
+    }
 
-	pathstmp.swap(pathsout);	
-	container.export_results(pathsout);
-	
-	if (pathsout.size() > 0)
-		show_path(pathsout[0], container.m_diff);
-	else
-		throw std::runtime_error("No valid differential paths found!");
-	std::string filenameout = pathsstring("paths" + boost::lexical_cast<std::string>(t), modi, modn);
-	hashclash::timer savetime(true);
-	cout << "Saving " << pathsout.size() << " paths..." << flush;
-	if (savetocache)
-		pathsout.swap(pathscache);
-	else
-		save_gz(pathsout, filenameout, binary_archive);
-	cout << "done. (" << savetime.time() << "s)" << endl;
+    dostep_threaded(pathsin, container);
+    //	progress_display show_progress(pathsin.size(), true, cout, tstring, "      ", "      ");
+    //	for (unsigned k = 0; k < pathsin.size(); ++k,++show_progress)
+    //		md5_backward_differential_step(pathsin[k], container);
+
+    pathstmp.swap(pathsout);
+    container.export_results(pathsout);
+
+    if (pathsout.size() > 0) {
+        show_path(pathsout[0], container.m_diff);
+    } else {
+        throw std::runtime_error("No valid differential paths found!");
+    }
+    std::string filenameout = pathsstring("paths" + boost::lexical_cast<std::string>(t), modi, modn);
+    hashclash::timer savetime(true);
+    cout << "Saving " << pathsout.size() << " paths..." << flush;
+    if (savetocache) {
+        pathsout.swap(pathscache);
+    } else {
+        save_gz(pathsout, filenameout, binary_archive);
+    }
+    cout << "done. (" << savetime.time() << "s)" << endl;
 }

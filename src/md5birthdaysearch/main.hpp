@@ -36,30 +36,28 @@ using namespace std;
 #include "birthday_types.hpp"
 
 namespace boost {
-	namespace serialization {
-		template<class Archive>
-		void serialize(Archive& ar, trail_type& t, const unsigned int file_version)
-		{
-			ar & boost::serialization::make_nvp("start0", t.start[0]);
-			ar & boost::serialization::make_nvp("start1", t.start[1]);
-			ar & boost::serialization::make_nvp("start2", t.start[2]);
-			ar & boost::serialization::make_nvp("end0", t.end[0]);
-			ar & boost::serialization::make_nvp("end1", t.end[1]);
-			ar & boost::serialization::make_nvp("end2", t.end[2]);
-			ar & boost::serialization::make_nvp("len", t.len);
-		}
-	}
+namespace serialization {
+template <class Archive> void serialize(Archive &ar, trail_type &t, const unsigned int file_version) {
+    ar &boost::serialization::make_nvp("start0", t.start[0]);
+    ar &boost::serialization::make_nvp("start1", t.start[1]);
+    ar &boost::serialization::make_nvp("start2", t.start[2]);
+    ar &boost::serialization::make_nvp("end0", t.end[0]);
+    ar &boost::serialization::make_nvp("end1", t.end[1]);
+    ar &boost::serialization::make_nvp("end2", t.end[2]);
+    ar &boost::serialization::make_nvp("len", t.len);
 }
+} // namespace serialization
+} // namespace boost
 
 extern std::string workdir;
 extern uint32 colla1, collb1, collc1, colla2, collb2, collc2;
 
-int dostep(birthday_parameters& parameters);
-void birthday(birthday_parameters& parameters);
-void determine_nrblocks_distribution(birthday_parameters& parameters);
+int dostep(birthday_parameters &parameters);
+void birthday(birthday_parameters &parameters);
+void determine_nrblocks_distribution(birthday_parameters &parameters);
 
-unsigned load_block(istream& i, uint32 block[]);
-void save_block(ostream& o, uint32 block[]);
+unsigned load_block(istream &i, uint32 block[]);
+void save_block(ostream &o, uint32 block[]);
 
 // cuda
 

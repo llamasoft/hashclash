@@ -23,30 +23,31 @@
 // to be extended to support hard drive storage
 
 class storage_type {
-public:
-	storage_type(): totcoll(0), tmpptr(0) {}
-	~storage_type() {}
+  public:
+    storage_type()
+        : totcoll(0), tmpptr(0) {}
+    ~storage_type() {}
 
-	void set_parameters(const birthday_parameters& parameters)
-	{
-		procmodn = parameters.modn;
-		memhardlimit = parameters.memhardlimit;
-	}
+    void set_parameters(const birthday_parameters &parameters) {
+        procmodn = parameters.modn;
+        memhardlimit = parameters.memhardlimit;
+    }
 
-	void reserve_memory(uint64 m);
-	void insert_trail(const trail_type& tr);
-	void insert_trails(const vector<trail_type>& trs);
-	void get_birthdaycollisions(vector< pair<trail_type,trail_type> >& collisions, unsigned multiple_of = 1);
-	unsigned get_collqueuesize();
-	unsigned get_totcoll();
-private:
-	vector< vector<trail_type> > trail_hash;
-	vector< pair<trail_type,trail_type> > collisions;
-	unsigned procmodn;
-	bool memhardlimit;
-	uint32 tmpptr;
+    void reserve_memory(uint64 m);
+    void insert_trail(const trail_type &tr);
+    void insert_trails(const vector<trail_type> &trs);
+    void get_birthdaycollisions(vector<pair<trail_type, trail_type>> &collisions, unsigned multiple_of = 1);
+    unsigned get_collqueuesize();
+    unsigned get_totcoll();
 
-	unsigned totcoll;
+  private:
+    vector<vector<trail_type>> trail_hash;
+    vector<pair<trail_type, trail_type>> collisions;
+    unsigned procmodn;
+    bool memhardlimit;
+    uint32 tmpptr;
+
+    unsigned totcoll;
 };
 
 extern storage_type main_storage;

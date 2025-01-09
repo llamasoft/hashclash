@@ -37,26 +37,22 @@ namespace fs = boost::filesystem;
 
 std::string workdir;
 
-int main(int argc, char** argv) 
-{
-	int result = 0;
-	timer runtime(true);
+int main(int argc, char **argv) {
+    int result = 0;
+    timer runtime(true);
 
-	cout <<
-		"Birthday search for MD5 chosen-prefix collisions\n"
-		"Copyright (C) 2009 Marc Stevens\n"
-		"http://homepages.cwi.nl/~stevens/\n"
-		<< endl;
+    cout << "Birthday search for MD5 chosen-prefix collisions\n"
+            "Copyright (C) 2009 Marc Stevens\n"
+            "http://homepages.cwi.nl/~stevens/\n"
+         << endl;
 
-	try {
-		birthday_parameters parameters;
+    try {
+        birthday_parameters parameters;
 
-		// Define program options
-		po::options_description 
-			desc("Allowed options"), 			
-			all("Allowed options");
+        // Define program options
+        po::options_description desc("Allowed options"), all("Allowed options");
 
-		desc.add_options()
+        desc.add_options()
 			("help,h", "Show options.")
 			("mod,m"
 				, po::value<unsigned>(&parameters.modn)->default_value(1)
@@ -125,88 +121,79 @@ int main(int argc, char** argv)
 			;
 
 #ifdef HAVE_CUDA
-		desc.add_options()
-			("cuda_dev_query", "Query CUDA devices")
-			("cuda_enable", po::bool_switch(&parameters.cuda_enabled), "Enable CUDA")
-			;
+        desc.add_options()("cuda_dev_query", "Query CUDA devices")("cuda_enable", po::bool_switch(&parameters.cuda_enabled), "Enable CUDA");
 #else
-		all.add_options()			
-			("cuda_dev_query", "Query CUDA devices")
-			("cuda_enable", po::bool_switch(&parameters.cuda_enabled), "Enable CUDA")
-			;
+        all.add_options()("cuda_dev_query", "Query CUDA devices")("cuda_enable", po::bool_switch(&parameters.cuda_enabled), "Enable CUDA");
 #endif
 
-		all.add(desc);
-	
-		// Parse program options
-		po::variables_map vm;
-		po::store(po::parse_command_line(argc, argv, all), vm);
-		{
-			std::ifstream ifs("md5birthdaysearch.cfg");
-			if (ifs) po::store(po::parse_config_file(ifs, all), vm);
-		}
-		po::notify(vm);
+        all.add(desc);
 
-		// Process program options
-		if (vm.count("help")) {
-			cout << desc << endl;
-			return 0;
-		}
-		if (parameters.distribution) {
-			determine_nrblocks_distribution(parameters);
-			return 0;
-		}
+        // Parse program options
+        po::variables_map vm;
+        po::store(po::parse_command_line(argc, argv, all), vm);
+        {
+            std::ifstream ifs("md5birthdaysearch.cfg");
+            if (ifs) {
+                po::store(po::parse_config_file(ifs, all), vm);
+            }
+        }
+        po::notify(vm);
 
-		if (parameters.modi >= parameters.modn) {
-			cerr << "Error: i must be strictly less than m!" << endl;
-			return 1;
-		}
-		if (parameters.modn != 1)
-			cout << "System " << parameters.modi << " of " << parameters.modn << endl;
-		if (parameters.inputfile1.size() == 0)
-		{
-			cerr << "Error: inputfile1 must be given!" << endl;
-			return 2;
-		}
-		if (parameters.inputfile2.size() == 0)
-		{
-			cerr << "Error: inputfile2 must be given!" << endl;
-			return 2;
-		}
-		if (parameters.logpathlength < 0 && parameters.maxmemory == 0)
-		{
-			cerr << "Cannot determine logtraillength when maxmemory is unspecified!" << endl;
-			return 3;
-		}
-		if (parameters.modi == 0)
-		{
-			if (parameters.outputfile1.size() == 0)
-			{
-				cerr << "Error: outputfile1 must be given!" << endl;
-				return 2;
-			}
-			if (parameters.outputfile2.size() == 0)
-			{
-				cerr << "Error: outputfile2 must be given!" << endl;
-				return 2;
-			}			
-		}
+        // Process program options
+        if (vm.count("help")) {
+            cout << desc << endl;
+            return 0;
+        }
+        if (parameters.distribution) {
+            determine_nrblocks_distribution(parameters);
+            return 0;
+        }
+
+        if (parameters.modi >= parameters.modn) {
+            cerr << "Error: i must be strictly less than m!" << endl;
+            return 1;
+        }
+        if (parameters.modn != 1) {
+            cout << "System " << parameters.modi << " of " << parameters.modn << endl;
+        }
+        if (parameters.inputfile1.size() == 0) {
+            cerr << "Error: inputfile1 must be given!" << endl;
+            return 2;
+        }
+        if (parameters.inputfile2.size() == 0) {
+            cerr << "Error: inputfile2 must be given!" << endl;
+            return 2;
+        }
+        if (parameters.logpathlength < 0 && parameters.maxmemory == 0) {
+            cerr << "Cannot determine logtraillength when maxmemory is unspecified!" << endl;
+            return 3;
+        }
+        if (parameters.modi == 0) {
+            if (parameters.outputfile1.size() == 0) {
+                cerr << "Error: outputfile1 must be given!" << endl;
+                return 2;
+            }
+            if (parameters.outputfile2.size() == 0) {
+                cerr << "Error: outputfile2 must be given!" << endl;
+                return 2;
+            }
+        }
 #ifdef HAVE_CUDA
-		if (vm.count("cuda_dev_query")) {
-			cuda_device_query();
-			return 0;
-		}
+        if (vm.count("cuda_dev_query")) {
+            cuda_device_query();
+            return 0;
+        }
 #endif // CUDA
-		result = dostep(parameters);
-	} catch (exception& e) {
-		cout << "Runtime: " << runtime.time() << endl;
-		cerr << "Caught exception!!:" << endl << e.what() << endl;
-		throw;
-	} catch (...) {
-		cout << "Runtime: " << runtime.time() << endl;
-		cerr << "Unknown exception caught!!" << endl;
-		throw;
-	}
-	cout << "Runtime: " << runtime.time() << endl;
-	return result;
+        result = dostep(parameters);
+    } catch (exception &e) {
+        cout << "Runtime: " << runtime.time() << endl;
+        cerr << "Caught exception!!:" << endl << e.what() << endl;
+        throw;
+    } catch (...) {
+        cout << "Runtime: " << runtime.time() << endl;
+        cerr << "Unknown exception caught!!" << endl;
+        throw;
+    }
+    cout << "Runtime: " << runtime.time() << endl;
+    return result;
 }
