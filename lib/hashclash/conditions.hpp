@@ -31,23 +31,27 @@
 
 namespace hashclash {
 
+// Q[t][i] = Q value from rount `t`, bit `i`
+// Q' = Q after applying message difference
 enum bitcondition {
-    bc_constant,
-    bc_plus,
-    bc_minus,
-    bc_zero,
-    bc_one,
-    bc_prev,
-    bc_prevn,
-    bc_prev2,
-    bc_prev2n,
-    bc_or2,
-    bc_next,
-    bc_nextn,
-    bc_next2,
-    bc_next2n,
-    bc_or2b, // counterparts of prev,...,or2
-    bc_max
+    // Differential conditions
+    bc_constant,    // '.' Q[t][i] == Q'[t][i]
+    bc_plus,        // '+' Q[t][i] == 0 && Q'[t][i] == 1
+    bc_minus,       // '-' Q[t][i] == 1 && Q'[t][i] == 0
+    // Boolean conditions (assumes Q[t][i] == Q'[t][i])
+    bc_zero,        // '0' Q[t][i] == 0
+    bc_one,         // '1' Q[t][i] == 1
+    bc_prev,        // '^' Q[t][i] == Q[t-1][i]
+    bc_prevn,       // '!' Q[t][i] != Q[t-1][i]
+    bc_prev2,       // 'm' Q[t][i] == Q[t-2][i]
+    bc_prev2n,      // '#' Q[t][i] != Q[t-2][i]
+    bc_or2,         // '?' Q[t][i] == 1 || Q[t-2][i] == 0
+    bc_next,        // 'V' Q[t][i] == Q[t+1][i]
+    bc_nextn,       // 'Y' Q[t][i] != Q[t+1][i]
+    bc_next2,       // 'W' Q[t][i] == Q[t+2][i]
+    bc_next2n,      // 'H' Q[t][i] != Q[t+2][i]
+    bc_or2b,        // 'Q' Q[t][i] == 0 || Q[t+2][i] == 1
+    bc_max          // END OF LIST
 };
 inline bitcondition fromdiff(int d) {
     if (d == -1) {

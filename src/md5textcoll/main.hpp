@@ -498,8 +498,14 @@ template <size_t N> struct md5state_t {
     uint32 &Wt(int t) { return m[md5_wt[t]]; }
     const uint32 &Wt(int t) const { return m[md5_wt[t]]; }
 
+    // Compute Qt+1 using Qt, Qt-1, Qt-2, Qt-3, and Wt.
+    // This is the normal "forward" processing the MD5 does.
     void computeQtp1(int t) { Qt(t + 1) = md5_step(t, Qt(t), Qt(t - 1), Qt(t - 2), Qt(t - 3), Wt(t)); }
+
+    // Compute Qt-3 using Qt+1, Qt, Qt-1, Qt-2, and Wt.
     void computeQtm3(int t) { Qt(t - 3) = md5_step_bw(t, Qt(t + 1), Qt(t), Qt(t - 1), Qt(t - 2), Wt(t)); }
+
+    // Compute Wt using Qt+1, Qt, Qt-1, Qt-2, Qt-3.
     void computeWt(int t) { Wt(t) = md5_step_bw(t, Qt(t + 1), Qt(t), Qt(t - 1), Qt(t - 2), Qt(t - 3)); }
 };
 

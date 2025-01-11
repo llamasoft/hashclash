@@ -198,6 +198,7 @@ int main(int argc, char **argv) {
             vector<differentialpath> vecpath;
             bool failed = true;
             try {
+                // Input file has multiple differential paths
                 load_gz(vecpath, binary_archive, parameters.pathfile);
                 failed = false;
             } catch (...) {
@@ -205,6 +206,7 @@ int main(int argc, char **argv) {
             if (failed) {
                 vecpath.clear();
                 try {
+                    // Input file is a single differential path
                     load_gz(diffpath, binary_archive, parameters.pathfile);
                     vecpath.push_back(diffpath);
                     failed = false;

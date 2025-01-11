@@ -65,6 +65,8 @@ void textcoll_solver_t::prepare_block1() {
 
     // Q17-Q13,m1
     generateQ13Q17(out, N);
+    // Valid Q: {13, 14, 15, 16, 17}
+    // Valid m: {             1    }
 
     // m15 Q12 ... m12 Q9
     for (int t = 15; t >= 12; --t) {
@@ -72,22 +74,36 @@ void textcoll_solver_t::prepare_block1() {
         randomize_vector(in);
         extend_step_bw(t, out, in, N);
     }
+    // Valid Q: {9, 10, 11, 12, 13, 14, 15, 16, 17}
+    // Valid m: {           12, 13, 14, 15,  1}
 
     std::swap(in, out);
     randomize_vector(in);
     extend_step_fw(17, out, in, N); // m6
+    // Valid Q: {9, 10, 11, 12, 13, 14, 15, 16, 17, 18}
+    // Valid m: {           12, 13, 14, 15,  1,  6}
 
+    // m11 receives special treatment because it interacts with rounds 11 and 18.
+    // Solve round 11 backwards to generate Q8 and round 18 forwards for Q19.
     std::swap(in, out);
     randomize_vector(in);
     extend_step_m11(out, in, N); // m11
+    // Valid Q: {8,  9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19}
+    // Valid m: {           11, 12, 13, 14, 15,  1,  6  11}
 
     std::swap(in, out);
     randomize_vector(in);
     extend_step_fw(19, out, in, N); // m0
+    // Valid Q: {8,  9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20}
+    // Valid m: {           11, 12, 13, 14, 15,  1,  6  11,  0}
 
     std::swap(in, out);
     randomize_vector(in);
     extend_step_fw(20, out, in, N); // m5
+    // Valid Q: {8,  9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21}
+    // Valid m: {           11, 12, 13, 14, 15,  1,  6  11,  0,  5}
+
+    // Prune any solutions where applying --diffm5 results in an invalid word.
     for (size_t i = 0; i < out.size();) {
         if (MA.checkword(5, out[i].m[5]) && MA.checkword(5, out[i].m[5] + m_diff[5])) {
             ++i;
@@ -98,17 +114,28 @@ void textcoll_solver_t::prepare_block1() {
     }
     std::cout << "out.size() after m5+m_diff filtering: " << out.size() << std::endl;
 
+    // Solve round 10 backwards to generate Q7 and round 21 forwards to generate Q22.
+    // Like m11, m10 requires some special treatment because it is an input to rounds 10 and 21.
+    // Unlike m11/round 18, the result of solving round 21 might cause a contradiction.
+    // After generating Q22, all of round 22's inputs (Q19..Q22 and m15) have been generated.
+    // If round 22's output Q23 is invalid, the entire solution is invalid.
+    // So we also generate Q23 just to verify that all previously chosen values are still valid.
     std::swap(in, out);
     randomize_vector(in);
     extend_step_m10(out, in, N); // m10, m15
+    // Valid Q: {7,  8,  9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23}
+    // Valid m: {           10, 11, 12, 13, 14, 15,  1,  6  11,  0,  5, 10, 15}
 
     std::swap(in, out);
     randomize_vector(in);
     extend_step_fw(23, out, in, N); // m4
+    // Valid Q: {7,  8,  9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24}
+    // Valid m: {           10, 11, 12, 13, 14, 15,  1,  6  11,  0,  5, 10, 15,  4}
 
     std::cout << "Saving 'Q7Q24.bin.gz'..." << std::flush;
     save_gz(out, "Q7Q24", binary_archive);
 
+    // For each byte position in each generated message word, display the character frequency.
     std::map<char, size_t> charcount;
     for (int wt : {0, 1, 4, 5, 6, 10, 11, 12, 13, 14, 15}) {
         for (unsigned b = 0; b < 4; ++b) {
@@ -116,6 +143,8 @@ void textcoll_solver_t::prepare_block1() {
             for (auto &S : out) {
                 ++charcount[char((S.m[wt] >> (8 * b)) & 0xFF)];
             }
+
+            // Alphabet sorted by frequency
             std::cout << "m" << wt << "[" << b << "]=msg[" << (wt * 4 + b) << "]: ";
             std::vector<std::pair<char, size_t>> charcountsorted(charcount.begin(), charcount.end());
             std::sort(
@@ -127,6 +156,8 @@ void textcoll_solver_t::prepare_block1() {
                 std::cout << cc.first;
             }
             std::cout << std::endl;
+
+            // Each alphabet character and respective frequency
             std::cout << "m" << wt << "[" << b << "]=msg[" << (wt * 4 + b) << "]: ";
             std::cout.precision(4);
             for (auto &cc : charcountsorted) {
@@ -137,6 +168,8 @@ void textcoll_solver_t::prepare_block1() {
     }
 }
 
+// Select suitable Q values for rounds t=12..15 (Q13..Q16)
+// Then resolve round t=16 (Q17/m1)
 void textcoll_solver_t::generateQ13Q17(vec_halfstate_t &out, uint64_t N) {
     out.resize(N);
     auto job_range = split_workload(N, threads);
@@ -204,6 +237,7 @@ void textcoll_solver_t::generateQ13Q17(vec_halfstate_t &out, uint64_t N) {
               << log(double(N) / double(attempts)) / log(2.0) << std::endl;
 }
 
+// Solve round t, generating Qt+1 and Wt such that the result is valid with the already chosen Qt-3.
 void textcoll_solver_t::extend_step_fw(int t, vec_halfstate_t &out, const vec_halfstate_t &in, uint64_t N) {
     out.resize(N);
     auto job_range = split_workload(N, threads);
@@ -263,6 +297,7 @@ void textcoll_solver_t::extend_step_fw(int t, vec_halfstate_t &out, const vec_ha
               << log(double(N) / double(attempts)) / log(2.0) << std::endl;
 }
 
+// Solve round t, generating Qt-3 and Wt such that the result is valid with the already chosen Qt+1.
 void textcoll_solver_t::extend_step_bw(int t, vec_halfstate_t &out, const vec_halfstate_t &in, uint64_t N) {
     out.resize(N);
     auto job_range = split_workload(N, threads);
@@ -322,6 +357,9 @@ void textcoll_solver_t::extend_step_bw(int t, vec_halfstate_t &out, const vec_ha
               << log(double(N) / double(attempts)) / log(2.0) << std::endl;
 }
 
+// Using a single m11 value:
+// - Solve round 11 backwards to generate Q8
+// - Solve round 18 forwards to generate Q19
 void textcoll_solver_t::extend_step_m11(vec_halfstate_t &out, const vec_halfstate_t &in, uint64_t N) {
     out.resize(N);
     auto job_range = split_workload(N, threads);
@@ -379,6 +417,10 @@ void textcoll_solver_t::extend_step_m11(vec_halfstate_t &out, const vec_halfstat
               << log(double(N) / double(attempts)) / log(2.0) << std::endl;
 }
 
+// Using a single m10 value:
+// - Solve round 10 backwards to generate Q7
+// - Solve round 21 forwards to generate Q22
+// - Verify that Q23 is valid now that all round 22 inputs have been chosen
 void textcoll_solver_t::extend_step_m10(vec_halfstate_t &out, const vec_halfstate_t &in, uint64_t N) {
     out.resize(N);
     auto job_range = split_workload(N, threads);
@@ -494,44 +536,44 @@ void textcoll_solver_t::filltables(const differentialpath &_diffpath) {
     }
 
 #if 0
-	// experimentally measure how many Q24 solutions you need on average for a full solution
-	counter_exponential_print attempt("attempt"), ok("ok"), partial("partial");
-	fullstate_t S1, S2;
-	while (true)
-	{
-		++attempt;
-		S1.Qt(21) = masked_value_Qt(21,S1).sample();
-		S1.Qt(22) = masked_value_QtQtm1(22,S1).sample();
-		S1.Qt(23) = masked_value_QtQtm1(23,S1).sample();
-		S1.Qt(24) = masked_value_QtQtm1(24,S1).sample();
-		for (int k = 0; k < 16; ++k)
-		{
-			S1.m[k] = xrng64();
-			S2.m[k] = S1.m[k] + m_diff[k];
-		}
-		for (int t = 21; t <= 24; ++t)
-			S2.Qt(t) = S1.Qt(t) + dQt(t);
-		for (int t = 24; t < 64; ++t)
-		{
-			S1.computeQtp1(t);
-			S2.computeQtp1(t);
-		}
-		if (S2.Qt(61)-S1.Qt(61) != uint32_t(1)<<31)
-			continue;
-		++partial;
-		if (S2.Qt(62)-S1.Qt(62) != uint32_t(1)<<31)
-			continue;
-		if (S2.Qt(63)-S1.Qt(63) != uint32_t(1)<<31)
-			continue;
-		if (S2.Qt(64)-S1.Qt(64) != uint32_t(1)<<31)
-			continue;
-		if ( (S1.Qt(64)>>31) != (S1.Qt(63)>>31) )
-			continue;
-		if ( (S1.Qt(64)>>31) != (S1.Qt(62)>>31) )
-			continue;
-		++ok;
-		std::cout << "p=" << log(double(ok())/double(attempt()))/log(2.0) << " partial";
-		std::cout << "p=" << log(double(ok())/double(partial()))/log(2.0) << std::endl;
-	}
+    // experimentally measure how many Q24 solutions you need on average for a full solution
+    counter_exponential_print attempt("attempt"), ok("ok"), partial("partial");
+    fullstate_t S1, S2;
+    while (true)
+    {
+        ++attempt;
+        S1.Qt(21) = masked_value_Qt(21,S1).sample();
+        S1.Qt(22) = masked_value_QtQtm1(22,S1).sample();
+        S1.Qt(23) = masked_value_QtQtm1(23,S1).sample();
+        S1.Qt(24) = masked_value_QtQtm1(24,S1).sample();
+        for (int k = 0; k < 16; ++k)
+        {
+            S1.m[k] = xrng64();
+            S2.m[k] = S1.m[k] + m_diff[k];
+        }
+        for (int t = 21; t <= 24; ++t)
+            S2.Qt(t) = S1.Qt(t) + dQt(t);
+        for (int t = 24; t < 64; ++t)
+        {
+            S1.computeQtp1(t);
+            S2.computeQtp1(t);
+        }
+        if (S2.Qt(61)-S1.Qt(61) != uint32_t(1)<<31)
+            continue;
+        ++partial;
+        if (S2.Qt(62)-S1.Qt(62) != uint32_t(1)<<31)
+            continue;
+        if (S2.Qt(63)-S1.Qt(63) != uint32_t(1)<<31)
+            continue;
+        if (S2.Qt(64)-S1.Qt(64) != uint32_t(1)<<31)
+            continue;
+        if ( (S1.Qt(64)>>31) != (S1.Qt(63)>>31) )
+            continue;
+        if ( (S1.Qt(64)>>31) != (S1.Qt(62)>>31) )
+            continue;
+        ++ok;
+        std::cout << "p=" << log(double(ok())/double(attempt()))/log(2.0) << " partial";
+        std::cout << "p=" << log(double(ok())/double(partial()))/log(2.0) << std::endl;
+    }
 #endif
 }
