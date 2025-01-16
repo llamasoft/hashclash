@@ -113,7 +113,7 @@ void textcoll_solver_t::completeQ7Q24(const halfstate_t &Q7Q24state) {
     }
     std::cout << std::endl;
 
-    // iterate over all m4 values in random order
+    // iterate over all m4 values in random order (in memory ಠ_ಠ)
     if (m4rndrange.empty()) {
         auto m4range = MA.word_range(4);
         m4rndrange.reserve(m4range.count());
@@ -123,12 +123,45 @@ void textcoll_solver_t::completeQ7Q24(const halfstate_t &Q7Q24state) {
     }
     randomize_vector(m4rndrange);
 
+    // Current status after the prepare phase:
+    // Valid Q: {7,  8,  9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24}
+    // Valid m: {           10, 11, 12, 13, 14, 15,  1,  6  11,  0,  5, 10, 15,  4}
+    // Unsolved m: {2, 3, 7, 8, 9}
+
+    // 1. Pick a random m4 (used in step 23)
+    // 2. Find all valid m10 (used in steps 10 and 21) that result in valid steps 21..23 (Q22..Q24).
+    //    We are about everything up to step 23 because step 24 is the endpoint of the Q9m9 tunnel.
+    // 3. Find all valid m13/Q10 (step 10) solutions
+    // 4. Sort the valid m13/Q10 solutions by Q9m9 tunnel strength
+    // 5. Using m13, find m12 values that satisfy the Q9, Q8, and Q7 conditions.
+    //    Results are deduped by Q7, Q8, and Q10 values.
+    //    Q9 not kept as it's values will be generated to iterate the Q9m9 tunnel.
+    // 6. Using the m12,m13 values, find all m10 satisfying Q7..Q9, Q22..Q23
+    // 7. Create a lookup from Q7 -> m10, m12, m13
+    // 8. THE MAIN LOOP
+    /*
+    for (auto m2 : valid_m2_words) {
+      for (auto m3 : valid_m3_words) {
+        compute and verify steps 2..6 (Q3..Q7)
+        for (auto [m10, m12, 13] : big_lookup[Q7]) {
+          compute and verify steps 13..10 backwards (Q10, Q9, Q8, m7)
+          for (auto Q9 : Q9m9tunnel) {
+            compute and verify m9, m8, m12
+          }
+        }
+      }
+    }
+    */
+
+    // 1. Pick a random m4 (used in step 23)
     size_t m4attempts = 0, m4ok = 0;
     for (auto &m4 : m4rndrange) {
         if (++m4attempts > 32 && m4ok == 0) {
             return;
         }
         S.m[4] = m4;
+
+        // 2. Find all valid m10 (used in step 21) that result in valid steps 21..23 (Q22..Q24)
         compute_good_m10(S);
         std::cout << "m4=" << word2str(m4) << ": good_m10 size: " << good_m10.size() << std::endl;
         if (good_m10.size() < 6000) { //(1ULL<<14))
@@ -144,8 +177,10 @@ void textcoll_solver_t::completeQ7Q24(const halfstate_t &Q7Q24state) {
         }
         std::cout << std::endl;
 
-        uint32_t m13org = S.m[13], Q10org = S.Qt(10);
+        // UNUSED:
+        // uint32_t m13org = S.m[13], Q10org = S.Qt(10);
 
+        // 3. Find all valid m13/Q10 (step 10) solutions
         std::vector<std::pair<uint32_t, uint32_t>> m13Q10good;
         for (uint32_t m13 : MA.word_range(13)) {
             S.m[13] = m13;
@@ -158,6 +193,15 @@ void textcoll_solver_t::completeQ7Q24(const halfstate_t &Q7Q24state) {
             }
             m13Q10good.emplace_back(S.m[13], S.Qt(10));
         }
+
+        // 4. Sort the valid m13/Q10 solutions by Q9m9 tunnel strength
+        // Unlike the Q9m9tunnel function, instead of ~S.Qt(10), we use ~Q10 from m13Q10good.
+        // This is basically an inlined, optimized version of:
+        //   [Q9m9](const std::pair<uint32_t, uint32_t> &l, const std::pair<uint32_t, uint32_t> &r) {
+        //       fullstate L = S; L.Qt(10) = l.second;
+        //       fullstate R = S; R.Qt(10) = r.second;
+        //       return Q9m9tunnel(L) > Q9m9tunnel(R);
+        //   }
         std::cout << "m13Q10good size: " << m13Q10good.size() << std::endl;
         uint32_t Q9m9 = ~Qvaluemask[offset + 9] & ~Qprev[offset + 10] & S.Qt(11);
         std::sort(
@@ -172,6 +216,9 @@ void textcoll_solver_t::completeQ7Q24(const halfstate_t &Q7Q24state) {
         // forget m12 for which there is already another m12 with same Q8 and Q7
         // i.e. the difference is part of the Q9m9 tunnel
 
+        // 5. Using m13, find m12 values that satisfy the Q9, Q8, and Q7 conditions.
+        // The m13 results are sorted by Q9m9 tunnel strength because we only generate
+        // a limited number of m12 solutions (2^21).
         std::map<std::array<uint32_t, 3>, std::array<uint32_t, 2>> Q7810m1213;
 
         progress_display pdQ7810(m13Q10good.size());
@@ -256,9 +303,10 @@ void textcoll_solver_t::completeQ7Q24(const halfstate_t &Q7Q24state) {
         vecQ7m10m12m13.clear();
         vecQ7m10m12m13.reserve(maxLUT);
 
+        // 6. Using the m12 values from the previous, find all m10 satisfying Q7..Q9, Q22..Q23
         auto m1213it = Q7810m1213.begin();
         run_workload(threads, [this, &S, &Q7810m1213, &m1213it, &pdm12m13](size_t ji, size_t jn) {
-            vector<std::array<uint32_t, 4>> tmp;
+            std::vector<std::array<uint32_t, 4>> tmp;
             tmp.reserve(1ULL << 20);
             fullstate_t myS = S;
             while (true) {
@@ -339,8 +387,9 @@ void textcoll_solver_t::completeQ7Q24(const halfstate_t &Q7Q24state) {
                 vecQ7m10m12m13.emplace_back(v);
             }
         });
+        
+        // 7. Create a lookup from Q7 -> m10, m12, m13
         std::cout << "Converting into look-up table..." << std::flush;
-
         std::sort(vecQ7m10m12m13.begin(), vecQ7m10m12m13.end(), [](const std::array<uint32_t, 4> &l, const std::array<uint32_t, 4> &r) {
             return l[0] < r[0];
         });
@@ -379,6 +428,7 @@ void textcoll_solver_t::completeQ7Q24(const halfstate_t &Q7Q24state) {
         counter_exponential_print m2m3cnt("m2m3cnt"), Q7attempts("Q7attempts"), Q7match("Q7match"), Q7success("Q7success"), m7ok("m7ok"),
             m8ok("m8ok"), m9ok("m9ok"), m12ok("m12ok"), Q24ok("Q24ok");
 
+        // iterate over all m4 values in random order (in memory ಠ_ಠ)
         std::vector<uint32_t> m2rndrange;
         for (uint32_t m2 : MA.word_range(2)) {
             m2rndrange.emplace_back(m2);
@@ -409,7 +459,7 @@ void textcoll_solver_t::completeQ7Q24(const halfstate_t &Q7Q24state) {
                 }
 
                 for (uint32_t m3 : m3range) {
-                    //				++m2m3cnt;
+                    // ++m2m3cnt;
 
                     S.m[3] = m3;
                     S.computeQtp1(3);
@@ -445,14 +495,14 @@ void textcoll_solver_t::completeQ7Q24(const halfstate_t &Q7Q24state) {
                         continue;
                     }
 
-                    //				++Q7attempts;
+                    // ++Q7attempts;
                     auto it = Q7ptr.find(S.Qt(7));
                     if (it == Q7ptr.end()) {
                         continue;
                     }
 
                     for (size_t q7i = it->second; q7i < vecQ7m10m12m13.size() && vecQ7m10m12m13[q7i][0] == S.Qt(7); ++q7i) {
-                        //					++Q7match;
+                        // ++Q7match;
 
                         S.m[10] = vecQ7m10m12m13[q7i][1];
                         S.m[12] = vecQ7m10m12m13[q7i][2];
@@ -469,7 +519,7 @@ void textcoll_solver_t::completeQ7Q24(const halfstate_t &Q7Q24state) {
                             continue;
                         }
 
-                        //					++m7ok;
+                        // ++m7ok;
 
                         // now iterate over Q9m9 tunnel
                         S.computeQtp1(21); // m10 => Q22 already checked
@@ -480,6 +530,8 @@ void textcoll_solver_t::completeQ7Q24(const halfstate_t &Q7Q24state) {
                         uint32_t Q9org = S.Qt(9);
                         uint32_t Q9cur = 0;
                         do {
+                            // Clever trick to iterate all valid masked values.
+                            // The mask will zero all unused bits so the next subtract forces a carry.
                             Q9cur -= 1;
                             Q9cur &= Q9m9tunnel;
                             S.Qt(9) = Q9org ^ Q9cur;
@@ -488,17 +540,17 @@ void textcoll_solver_t::completeQ7Q24(const halfstate_t &Q7Q24state) {
                             if (!MA.checkword(9, S.m[9])) {
                                 continue;
                             }
-                            //						++m9ok;
+                            // ++m9ok;
                             S.computeWt(8);
                             if (!MA.checkword(8, S.m[8])) {
                                 continue;
                             }
-                            //						++m8ok;
+                            // ++m8ok;
                             S.computeWt(12);
                             if (!MA.checkword(12, S.m[12])) {
                                 continue;
                             }
-                            //						++m12ok;
+                            // ++m12ok;
 
                             S.computeWt(10);
                             if (!MA.checkword(10, S.m[10])) {
@@ -537,8 +589,8 @@ void textcoll_solver_t::completeQ7Q24(const halfstate_t &Q7Q24state) {
 }
 
 void textcoll_solver_t::check_solution(const fullstate_t &sol) {
-    fullstate_t S = sol;
 #if 0
+    fullstate_t S = sol;
 	// check consistency of solution
 	for (int t = 0; t <= 23; ++t)
 	{

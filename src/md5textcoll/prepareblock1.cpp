@@ -83,8 +83,8 @@ void textcoll_solver_t::prepare_block1() {
     // Valid Q: {9, 10, 11, 12, 13, 14, 15, 16, 17, 18}
     // Valid m: {           12, 13, 14, 15,  1,  6}
 
-    // m11 receives special treatment because it interacts with rounds 11 and 18.
-    // Solve round 11 backwards to generate Q8 and round 18 forwards for Q19.
+    // m11 receives special treatment because it interacts with steps 11 and 18.
+    // Solve step 11 backwards to generate Q8 and step 18 forwards for Q19.
     std::swap(in, out);
     randomize_vector(in);
     extend_step_m11(out, in, N); // m11
@@ -114,11 +114,11 @@ void textcoll_solver_t::prepare_block1() {
     }
     std::cout << "out.size() after m5+m_diff filtering: " << out.size() << std::endl;
 
-    // Solve round 10 backwards to generate Q7 and round 21 forwards to generate Q22.
-    // Like m11, m10 requires some special treatment because it is an input to rounds 10 and 21.
-    // Unlike m11/round 18, the result of solving round 21 might cause a contradiction.
-    // After generating Q22, all of round 22's inputs (Q19..Q22 and m15) have been generated.
-    // If round 22's output Q23 is invalid, the entire solution is invalid.
+    // Solve step 10 backwards to generate Q7 and step 21 forwards to generate Q22.
+    // Like m11, m10 requires some special treatment because it is an input to steps 10 and 21.
+    // Unlike m11/step 18, the result of solving step 21 might cause a contradiction.
+    // After generating Q22, all of step 22's inputs (Q19..Q22 and m15) have been generated.
+    // If step 22's output Q23 is invalid, the entire solution is invalid.
     // So we also generate Q23 just to verify that all previously chosen values are still valid.
     std::swap(in, out);
     randomize_vector(in);
@@ -168,8 +168,8 @@ void textcoll_solver_t::prepare_block1() {
     }
 }
 
-// Select suitable Q values for rounds t=12..15 (Q13..Q16)
-// Then resolve round t=16 (Q17/m1)
+// Select suitable Q values for steps t=12..15 (Q13..Q16)
+// Then resolve step t=16 (Q17/m1)
 void textcoll_solver_t::generateQ13Q17(vec_halfstate_t &out, uint64_t N) {
     out.resize(N);
     auto job_range = split_workload(N, threads);
@@ -237,7 +237,7 @@ void textcoll_solver_t::generateQ13Q17(vec_halfstate_t &out, uint64_t N) {
               << log(double(N) / double(attempts)) / log(2.0) << std::endl;
 }
 
-// Solve round t, generating Qt+1 and Wt such that the result is valid with the already chosen Qt-3.
+// Solve step t, generating Qt+1 and Wt such that the result is valid with the already chosen Qt-3.
 void textcoll_solver_t::extend_step_fw(int t, vec_halfstate_t &out, const vec_halfstate_t &in, uint64_t N) {
     out.resize(N);
     auto job_range = split_workload(N, threads);
@@ -297,7 +297,7 @@ void textcoll_solver_t::extend_step_fw(int t, vec_halfstate_t &out, const vec_ha
               << log(double(N) / double(attempts)) / log(2.0) << std::endl;
 }
 
-// Solve round t, generating Qt-3 and Wt such that the result is valid with the already chosen Qt+1.
+// Solve step t, generating Qt-3 and Wt such that the result is valid with the already chosen Qt+1.
 void textcoll_solver_t::extend_step_bw(int t, vec_halfstate_t &out, const vec_halfstate_t &in, uint64_t N) {
     out.resize(N);
     auto job_range = split_workload(N, threads);
@@ -358,8 +358,8 @@ void textcoll_solver_t::extend_step_bw(int t, vec_halfstate_t &out, const vec_ha
 }
 
 // Using a single m11 value:
-// - Solve round 11 backwards to generate Q8
-// - Solve round 18 forwards to generate Q19
+// - Solve step 11 backwards to generate Q8
+// - Solve step 18 forwards to generate Q19
 void textcoll_solver_t::extend_step_m11(vec_halfstate_t &out, const vec_halfstate_t &in, uint64_t N) {
     out.resize(N);
     auto job_range = split_workload(N, threads);
@@ -418,9 +418,9 @@ void textcoll_solver_t::extend_step_m11(vec_halfstate_t &out, const vec_halfstat
 }
 
 // Using a single m10 value:
-// - Solve round 10 backwards to generate Q7
-// - Solve round 21 forwards to generate Q22
-// - Verify that Q23 is valid now that all round 22 inputs have been chosen
+// - Solve step 10 backwards to generate Q7
+// - Solve step 21 forwards to generate Q22
+// - Verify that Q23 is valid now that all step 22 inputs have been chosen
 void textcoll_solver_t::extend_step_m10(vec_halfstate_t &out, const vec_halfstate_t &in, uint64_t N) {
     out.resize(N);
     auto job_range = split_workload(N, threads);

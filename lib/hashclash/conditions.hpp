@@ -187,9 +187,16 @@ struct byteconditions {
         }
         return m;
     }
+
+    // The arithmetic difference after applying the message difference.
     uint32 diff() const { return mask(bc_plus) - mask(bc_minus); }
+
+    // Must be zero or must be able to increase after applying message difference.
     uint32 set0() const { return ~(mask(bc_zero) | mask(bc_plus)); }
+
+    // Must be one or must be able to decrease after applying message difference.
     uint32 set1() const { return mask(bc_one) | mask(bc_minus); }
+
     uint32 prev() const { return mask(bc_prev); }
     uint32 prevn() const { return mask(bc_prevn); }
     uint32 prev2() const { return mask(bc_prev2); }

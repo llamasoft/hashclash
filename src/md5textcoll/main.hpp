@@ -404,6 +404,7 @@ struct message_alphabet {
             return ret;
         }
 
+        // Iterator over all messages that can be generated from the given alphabets.
         struct iterator {
             const byte_alphabet *_bytes;
             size_t _index[4];
@@ -439,18 +440,27 @@ struct message_alphabet {
 };
 
 struct masked_value {
+    // For each 1-bit in the mask, the result must have the corresponding bit from the value.
+    //   for (bit = 0..31) { result[bit] = (mask[bit] ? value[bit] : input[bit]); }
+    // Or simply: output = (input & ~mask) | (value & mask)
     uint32_t mask;
     uint32_t value;
 
     masked_value(uint32_t m = 0, uint32_t v = 0)
         : mask(m), value(v & m) {}
 
+    // Same as `(c & ~mask) == value`
     bool check(uint32_t c) const { return 0 == ((c ^ value) & mask); }
+
+    // Generate a random value that has the required bit values.
     uint32_t sample() const { return (uint32_t(xrng64()) & ~mask) ^ value; }
     uint32_t sample(localxrng &rng) const { return (uint32_t(rng()) & ~mask) ^ value; }
 
+    // The number of possible output values that can be generated with this mask.
+    // e.g. If the mask has 8 bits set, we can generate 2^(32-8) results.
     uint64_t count() const { return uint64_t(1) << hammingweight(~mask); }
 
+    // Iterates all possible word values that satisfy the given mask and value.
     struct range_t {
         uint32_t _loopvalue;
         uint32_t _loopmask;
@@ -537,12 +547,13 @@ struct textcoll_solver_t {
 
     uint64 cpu_step_t[64];
     vector<uint64> testcounts;
-    differentialpath diffpath;
+    differentialpath diffpath; // Unused?
     uint32 m_diff[16];
     unsigned threads;
 
     static const int offset = 3;
 
+    // The arithmetic difference in Q, T, and R after applying the message difference.
     uint32 dQ[68];
     uint32 dT[68];
     uint32 dR[68];
@@ -551,19 +562,28 @@ struct textcoll_solver_t {
     uint32 dTt(int t) const { return dT[offset + t]; }
     uint32 dRt(int t) const { return dR[offset + t]; }
 
+    // The bits of Qt that must have a set value or depend on previous Q value.
+    // i.e. If a bit in this mask is 1, the value is not ours to choose.
     uint32 Qvaluemask[68];
+    uint32 Qtvaluemask(int t) const { return Qvaluemask[offset + t]; }
+
+    // The bits of Qt that must be set to 1 or must be different from Qt-1 or Qt-2 (???).
     uint32 Qvalue[68];
+    uint32 Qtvalue(int t) const { return Qvalue[offset + t]; }
+
+    // The bits of Qt that depend on the value of Qt-1
     uint32 Qprev[68];
+    uint32 Qtprev(int t) const { return Qprev[offset + t]; }
+
+    // The bits of Qt that depend on the value of Qt-2
+    // TODO: this appears to be unused
     uint32 Qprev2[68];
+    uint32 Qtprev2(int t) const { return Qprev2[offset + t]; }
 
     size_t prefixblocks;
     uint32 ihv1[4];
     uint32 ihv2[4];
 
-    uint32 Qtvaluemask(int t) const { return Qvaluemask[offset + t]; }
-    uint32 Qtvalue(int t) const { return Qvalue[offset + t]; }
-    uint32 Qtprev(int t) const { return Qprev[offset + t]; }
-    uint32 Qtprev2(int t) const { return Qprev2[offset + t]; }
 
     message_alphabet MA;
 
@@ -599,10 +619,29 @@ struct textcoll_solver_t {
     std::mutex mut;
     typedef std::lock_guard<std::mutex> lock_t;
 
+    // Q9m9 tunnel strength (between 0 and 31)
+    // TODO: add function to simply return the tunnel mask for use in block1.cpp
     template <size_t N> unsigned Q9m9tunnel(const md5state_t<N> &S) const {
-        return hammingweight(~Qvaluemask[offset + 9] & ~Qprev[offset + 10] & S.Qt(11) & ~S.Qt(10));
+        return hammingweight(
+            // Qvaluemask is the bits of Qt that must be a set value according to the differential path.
+            // ~Qvaluemask[offset + 9] are the bits of Q9 that we are allowed to manipulate.
+            ~Qvaluemask[offset + 9]
+            // Qprev are the bits of Qt that depend on values from the previous step.
+            // ~Qprev[offset + 10] are the bits of Q10 that don't depend on values from Q9.
+            & ~Qprev[offset + 10]
+            // As required by tunnel T8 (Section 6.3.1 table 6-3),
+            // the extra bit conditions that Q11[b] = 1 and Q10[b] = 0
+            & S.Qt(11)
+            & ~S.Qt(10)
+        );
     }
 
+    // Ensure that the message difference carry/borrow propagates correctly for this Q value
+    // because the step's rotation may disrupt carry/borrow propagation.
+    // e.g. 0xFFFFFFFF + 1 will carry propagate across the 32 bits,
+    //   but rotate_left(0xFFFFFFFF, X) + rotate_left(1, X) only propagates across 32-X bits.
+    // How far the message difference propagates depends on both Q and the amount of rotation.
+    // See 5.5.1 Rotation of word differences
     template <size_t N> bool checkrotationQtQtp1(int t, const md5state_t<N> &s) const {
         uint32_t R1 = s.Qt(t + 1) - s.Qt(t);
         uint32_t R2 = R1 + dRt(t);
@@ -611,15 +650,22 @@ struct textcoll_solver_t {
         return T2 - T1 == dTt(t);
     }
 
+    // The directly required bits of Qt in isolation (no previous or next dependencies).
     template <size_t N> masked_value masked_value_Qt(int t, const md5state_t<N> &s) const {
         // ignore Qprev(t) (included by default) and Qprev(t+1) (not included by default)
         uint32_t mask = Qtvaluemask(t) & ~Qtprev(t);
         return masked_value(mask, Qtvalue(t) & mask);
     }
+
+    // The required bits of Qt based on the current value of Qt-1.
+    // Assumes that Qt+1 is unknown or unsolved.
     template <size_t N> masked_value masked_value_QtQtm1(int t, const md5state_t<N> &s) const {
         // use Qprev(t) included by default
         return masked_value(Qtvaluemask(t), Qtvalue(t) ^ (s.Qt(t - 1) & Qtprev(t)));
     }
+
+    // The required bits of Qt based on the current value of Qt+1.
+    // Assumes that Qt-1 is unknown or unspecified.
     template <size_t N> masked_value masked_value_QtQtp1(int t, const md5state_t<N> &s) const {
         // ignore Qprev(t) included by default
         uint32_t mask = Qtvaluemask(t) & ~Qtprev(t);
