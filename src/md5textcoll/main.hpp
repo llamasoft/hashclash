@@ -274,8 +274,13 @@ inline static std::string word2str(uint32_t mt) {
 }
 
 struct byte_alphabet {
+    // Bitmap that indicates if a particular character is present.
     uint64_t byte_ok[4];
+
+    // Total number of characters in the alphabet.
     uint64_t byte_size;
+
+    // The list of present characters.
     uint8_t byte_val[256];
 
     byte_alphabet()
@@ -283,6 +288,7 @@ struct byte_alphabet {
 
     byte_alphabet(const std::string &alphabet)
         : byte_size(0), byte_ok{0, 0, 0, 0} {
+        // Dedupe and sort the characters of the alphabet.
         for (size_t byte : alphabet) {
             byte_ok[byte / 64] |= uint64_t(1) << (byte % 64);
         }
@@ -307,6 +313,15 @@ struct message_alphabet {
     byte_alphabet bytes[64];
     uint64_t word_size[16];
 
+    static uint64_t wordsize(const byte_alphabet *bytes) {
+        if (bytes == nullptr) { return 0; }
+        uint64_t size = 1;
+        for (unsigned b = 0; b < 4; b++) {
+            size *= bytes[b].size();
+        }
+        return size;
+    }
+
     message_alphabet(const std::string &alphabet = "", const std::vector<std::string> &byte_specific = std::vector<std::string>()) {
         for (unsigned b = 0; b < 64; ++b) {
             bytes[b] = byte_alphabet(alphabet);
@@ -315,10 +330,7 @@ struct message_alphabet {
             }
         }
         for (unsigned w = 0; w < 16; ++w) {
-            word_size[w] = 1;
-            for (unsigned b = 0; b < 4; ++b) {
-                word_size[w] *= bytes[w * 4 + b].size();
-            }
+            word_size[w] = wordsize(bytes + w*4);
         }
     }
 
@@ -332,62 +344,43 @@ struct message_alphabet {
         }
     }
 
-    bool checkbyte(int b, uint8_t v) const { return bytes[b].check(v); }
-
-    bool checkword(int t, uint32_t mt) const {
+    static bool checkword(const byte_alphabet *bytes, uint32_t w) {
         for (unsigned b = 0; b < 4; ++b) {
-            uint8_t v = uint8_t((mt >> (b * 8)) & 0xFF);
-            if (!bytes[4 * t + b].check(v)) {
+            uint8_t v = uint8_t((w >> (b * 8)) & 0xFF);
+            if (!bytes[b].check(v)) {
                 return false;
             }
         }
         return true;
     }
 
-    uint8_t samplebyte(int b) const { return bytes[b].byte_val[xrng64() % bytes[b].size()]; }
+    bool checkword(int t, uint32_t w) const {
+        return checkword(bytes + 4*t, w);
+    }
 
-    uint8_t samplebyte(int b, localxrng &rnd) const { return bytes[b].byte_val[rnd() % bytes[b].size()]; }
-
-    uint32_t sampleword(int t) const {
-        uint32 w = 0, i = 0, rnd = xrng64();
-
-        i = rnd % bytes[4 * t + 0].size();
-        w += uint32_t(bytes[4 * t + 0].byte_val[i]) << 0;
-        rnd /= bytes[4 * t + 0].size();
-
-        i = rnd % bytes[4 * t + 1].size();
-        w += uint32_t(bytes[4 * t + 1].byte_val[i]) << 8;
-        rnd = xrng64();
-
-        i = rnd % bytes[4 * t + 2].size();
-        w += uint32_t(bytes[4 * t + 2].byte_val[i]) << 16;
-        rnd /= bytes[4 * t + 2].size();
-
-        i = rnd % bytes[4 * t + 3].size();
-        w += uint32_t(bytes[4 * t + 3].byte_val[i]) << 24;
-
+    // Returns the Nth valid word of the given byte alphabets.
+    static uint32_t makeword(const byte_alphabet *bytes, uint32_t n) {
+        uint32_t w = 0;
+        for (auto word_byte = 0; word_byte < 4; word_byte++) {
+            auto byte_alpha = bytes[word_byte];
+            auto alpha_size = byte_alpha.size();
+            auto alpha_num = n % alpha_size;
+            n = n / alpha_size;
+            w |= uint32_t(byte_alpha.byte_val[alpha_num]) << (word_byte * 8);
+        }
         return w;
     }
 
-    uint32_t sampleword(int t, localxrng &rng) const {
-        uint32 w = 0, i = 0, rnd = rng();
+    uint32_t makeword(int word_num, uint32_t n) const {
+        return makeword(bytes + 4*word_num, n);
+    }
 
-        i = rnd % bytes[4 * t + 0].size();
-        w += uint32_t(bytes[4 * t + 0].byte_val[i]) << 0;
-        rnd /= bytes[4 * t + 0].size();
+    uint32_t sampleword(int word_num) const {
+        return makeword(word_num, xrng64());
+    }
 
-        i = rnd % bytes[4 * t + 1].size();
-        w += uint32_t(bytes[4 * t + 1].byte_val[i]) << 8;
-        rnd = rng();
-
-        i = rnd % bytes[4 * t + 2].size();
-        w += uint32_t(bytes[4 * t + 2].byte_val[i]) << 16;
-        rnd /= bytes[4 * t + 2].size();
-
-        i = rnd % bytes[4 * t + 3].size();
-        w += uint32_t(bytes[4 * t + 3].byte_val[i]) << 24;
-
-        return w;
+    uint32_t sampleword(int word_num, localxrng &rng) const {
+        return makeword(word_num, rng());
     }
 
     struct word_range_t {
@@ -397,11 +390,11 @@ struct message_alphabet {
             : _bytes(bytes) {}
 
         uint64_t count() const {
-            uint64_t ret = 1;
-            for (unsigned b = 0; b < 4; ++b) {
-                ret *= _bytes[b].size();
-            }
-            return ret;
+            return wordsize(_bytes);
+        }
+
+        uint32_t operator[](uint32_t n) {
+            return makeword(_bytes, n);
         }
 
         // Iterator over all messages that can be generated from the given alphabets.
@@ -436,7 +429,84 @@ struct message_alphabet {
         iterator begin() const { return iterator(_bytes); }
         iterator end() const { return iterator(); }
     };
+
     word_range_t word_range(int t) const { return word_range_t(bytes + (4 * t)); }
+
+    // Iterates over all valid word values in a pseudo-random order using an LCG.
+    struct shuffled_word_range_t {
+        const byte_alphabet *_bytes;
+        uint32_t _seed;
+
+        explicit shuffled_word_range_t(const byte_alphabet *bytes, uint32_t seed)
+            : _bytes(bytes), _seed(seed) {}
+
+        uint64_t count() const {
+            return wordsize(_bytes);
+        }
+
+        struct lcg_iterator {
+            const byte_alphabet *_bytes;
+            uint32_t state, step, value, value_mask, max_value;
+
+            // Steele, Guy & Vigna, Sebastiano. (2021). "Computationally easy,
+            // spectrally good multipliers for congruential pseudorandom number generators."
+            // Software: Practice and Experience. 52. 10.1002/spe.3030.
+            void lcg() {
+                // We can't just use (state % max_value) otherwise the LCG isn't guaranteed
+                // to have a full period according to the Hull-Dobell theorem.
+                // Instead, we end up rejecting at most half of generated LCG values.
+                do {
+                    state = (state * 0x915f77f5) + 1;
+                    value = (state & value_mask);
+                } while (value >= max_value);
+            }
+
+            bool done() const { return (_bytes == nullptr || step >= max_value); }
+
+            explicit lcg_iterator(const byte_alphabet *bytes = nullptr, uint32_t seed = 0)
+                : _bytes(bytes), state(seed), step(0), value(0), max_value(wordsize(_bytes)) {
+                value_mask = ((uint64_t)1 << (32 - __builtin_clzl(max_value | 1))) - 1;
+                if (_bytes != nullptr) { lcg(); }
+            }
+
+            explicit lcg_iterator(const byte_alphabet *bytes)
+                : lcg_iterator(bytes, xrng32()) {}
+
+            bool operator==(const lcg_iterator &other) const {
+                if (_bytes == nullptr && other._bytes == nullptr) { return true; }
+                return (
+                    _bytes == other._bytes
+                    && state == other.state
+                    && step == other.step
+                );
+            }
+            bool operator!=(const lcg_iterator &other) const {
+                return !(this->operator==(other));
+            }
+
+            lcg_iterator &operator++() {
+                if (_bytes != nullptr) { lcg(); }
+                step += 1;
+                if (step >= max_value) { _bytes = nullptr; }
+                return *this;
+            }
+
+            uint32 operator*() const {
+                return makeword(_bytes, value);
+            }
+        };
+
+        lcg_iterator begin() const { return lcg_iterator(_bytes, _seed); }
+        lcg_iterator end() const { return lcg_iterator(); }
+    };
+
+    shuffled_word_range_t shuffled_word_range(int t, uint32_t seed) const {
+        return shuffled_word_range_t(bytes + (4 * t), seed);
+    }
+
+    shuffled_word_range_t shuffled_word_range(int t) const {
+        return shuffled_word_range(t, xrng64());
+    }
 };
 
 struct masked_value {

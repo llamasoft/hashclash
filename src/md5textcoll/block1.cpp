@@ -113,16 +113,6 @@ void textcoll_solver_t::completeQ7Q24(const halfstate_t &Q7Q24state) {
     }
     std::cout << std::endl;
 
-    // iterate over all m4 values in random order (in memory ಠ_ಠ)
-    if (m4rndrange.empty()) {
-        auto m4range = MA.word_range(4);
-        m4rndrange.reserve(m4range.count());
-        for (uint32_t m4 : m4range) {
-            m4rndrange.emplace_back(m4);
-        }
-    }
-    randomize_vector(m4rndrange);
-
     // Current status after the prepare phase:
     // Valid Q: {7,  8,  9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24}
     // Valid m: {           10, 11, 12, 13, 14, 15,  1,  6  11,  0,  5, 10, 15,  4}
@@ -155,7 +145,7 @@ void textcoll_solver_t::completeQ7Q24(const halfstate_t &Q7Q24state) {
 
     // 1. Pick a random m4 (used in step 23)
     size_t m4attempts = 0, m4ok = 0;
-    for (auto &m4 : m4rndrange) {
+    for (auto m4 : MA.shuffled_word_range(4)) {
         if (++m4attempts > 32 && m4ok == 0) {
             return;
         }
@@ -387,7 +377,7 @@ void textcoll_solver_t::completeQ7Q24(const halfstate_t &Q7Q24state) {
                 vecQ7m10m12m13.emplace_back(v);
             }
         });
-        
+
         // 7. Create a lookup from Q7 -> m10, m12, m13
         std::cout << "Converting into look-up table..." << std::flush;
         std::sort(vecQ7m10m12m13.begin(), vecQ7m10m12m13.end(), [](const std::array<uint32_t, 4> &l, const std::array<uint32_t, 4> &r) {
@@ -428,27 +418,21 @@ void textcoll_solver_t::completeQ7Q24(const halfstate_t &Q7Q24state) {
         counter_exponential_print m2m3cnt("m2m3cnt"), Q7attempts("Q7attempts"), Q7match("Q7match"), Q7success("Q7success"), m7ok("m7ok"),
             m8ok("m8ok"), m9ok("m9ok"), m12ok("m12ok"), Q24ok("Q24ok");
 
-        // iterate over all m4 values in random order (in memory ಠ_ಠ)
-        std::vector<uint32_t> m2rndrange;
-        for (uint32_t m2 : MA.word_range(2)) {
-            m2rndrange.emplace_back(m2);
-        }
-        randomize_vector(m2rndrange);
-
-        std::atomic_size_t m2index(0);
-
         fullstate_t Scopy = S;
 
-        run_workload(threads, [this, &Scopy, &m2index, &m2rndrange, &Q24ok](size_t ji, size_t jn) {
+        auto m2rndrange = MA.shuffled_word_range(2);
+        auto m2i = m2rndrange.begin();
+
+        run_workload(threads, [this, &Scopy, &m2rndrange, &m2i, &Q24ok](size_t ji, size_t jn) {
             auto S = Scopy;
             auto m3range = MA.word_range(3);
             while (true) {
-                size_t m2i = m2index.fetch_add(1);
-                if (m2i >= m2rndrange.size()) {
-                    break;
+                {
+                    lock_t lock(mut);
+                    if (m2i == m2rndrange.end()) { break; }
+                    S.m[2] = *m2i;
+                    ++m2i;
                 }
-
-                S.m[2] = m2rndrange[m2i];
 
                 S.computeQtp1(2);
                 if (!masked_value_QtQtm1(3, S).check(S.Qt(3))) {
