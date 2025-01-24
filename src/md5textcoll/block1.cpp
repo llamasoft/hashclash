@@ -193,12 +193,11 @@ void textcoll_solver_t::completeQ7Q24(const halfstate_t &Q7Q24state) {
         //       return Q9m9tunnel(L) > Q9m9tunnel(R);
         //   }
         std::cout << "m13Q10good size: " << m13Q10good.size() << std::endl;
-        uint32_t Q9m9 = ~Qvaluemask[offset + 9] & ~Qprev[offset + 10] & S.Qt(11);
         std::sort(
             m13Q10good.begin(),
             m13Q10good.end(),
-            [Q9m9](const std::pair<uint32_t, uint32_t> &l, const std::pair<uint32_t, uint32_t> &r) {
-                return hammingweight(Q9m9 & ~l.second) > hammingweight(Q9m9 & ~r.second);
+            [this, &S](const std::pair<uint32_t, uint32_t> &l, const std::pair<uint32_t, uint32_t> &r) {
+                return Q9m9tunnel(S, l.second, S.Qt(11)) > Q9m9tunnel(S, r.second, S.Qt(11));
             }
         );
 
@@ -510,7 +509,7 @@ void textcoll_solver_t::completeQ7Q24(const halfstate_t &Q7Q24state) {
                         S.computeQtp1(22); // m15 => Q23 already checked
                         S.computeQtp1(23); // m4 => Q24 already checked
 
-                        uint32_t Q9m9tunnel = ~Qvaluemask[offset + 9] & ~Qprev[offset + 10] & S.Qt(11) & ~S.Qt(10);
+                        uint32_t Q9m9tunnel = Q9m9tunnelmask(S);
                         uint32_t Q9org = S.Qt(9);
                         uint32_t Q9cur = 0;
                         do {

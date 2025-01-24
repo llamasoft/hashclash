@@ -689,21 +689,33 @@ struct textcoll_solver_t {
     std::mutex mut;
     typedef std::lock_guard<std::mutex> lock_t;
 
-    // Q9m9 tunnel strength (between 0 and 31)
-    // TODO: add function to simply return the tunnel mask for use in block1.cpp
-    template <size_t N> unsigned Q9m9tunnel(const md5state_t<N> &S) const {
-        return hammingweight(
+    // Returns a mask indicating the bits of Q9 that can be modified for the Q9m9 tunnel
+    template <size_t N> uint32_t Q9m9tunnelmask(const md5state_t<N> &S, uint32_t Q10, uint32_t Q11) const {
+        return (
             // Qvaluemask is the bits of Qt that must be a set value according to the differential path.
-            // ~Qvaluemask[offset + 9] are the bits of Q9 that we are allowed to manipulate.
-            ~Qvaluemask[offset + 9]
+            // ~Qtvaluemask(9) are the bits of Q9 that we are allowed to manipulate.
+            ~Qtvaluemask(9)
             // Qprev are the bits of Qt that depend on values from the previous step.
-            // ~Qprev[offset + 10] are the bits of Q10 that don't depend on values from Q9.
-            & ~Qprev[offset + 10]
+            // ~Qtprev(10) are the bits of Q10 that don't depend on values from Q9.
+            & ~Qtprev(10)
             // As required by tunnel T8 (Section 6.3.1 table 6-3),
-            // the extra bit conditions that Q11[b] = 1 and Q10[b] = 0
-            & S.Qt(11)
-            & ~S.Qt(10)
+            // the extra bit conditions that Q10[b] = 0 and Q11[b] = 1
+            & ~Q10
+            & Q11
         );
+    }
+
+    template <size_t N> uint32_t Q9m9tunnelmask(const md5state_t<N> &S) const {
+        return Q9m9tunnelmask(S, S.Qt(10), S.Qt(11));
+    }
+
+    // Returns the Q9m9 tunnel strength (between 0 and 31 bits of freedom)
+    template <size_t N> unsigned Q9m9tunnel(const md5state_t<N> &S, uint32_t Q10, uint32_t Q11) const {
+        return hammingweight(Q9m9tunnelmask(S, Q10, Q11));
+    }
+
+    template <size_t N> unsigned Q9m9tunnel(const md5state_t<N> &S) const {
+        return hammingweight(Q9m9tunnelmask(S));
     }
 
     // Ensure that the message difference carry/borrow propagates correctly for this Q value
