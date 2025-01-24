@@ -120,6 +120,9 @@ void dostep(path_container_autobalance &container, bool savetocache) {
     const unsigned modn = container.modn;
     const unsigned modi = container.modi;
 
+    cout << endl;
+    cout << "==================== Step " << t << " ====================" << endl;
+
     vector<differentialpath> pathsin, pathstmp, pathsout;
     if (pathscache.size() != 0) {
         pathsin.swap(pathscache);
@@ -179,6 +182,7 @@ void dostep(path_container_autobalance &container, bool savetocache) {
     if (container.showinputpaths) {
         for (unsigned r = 0; r < pathsin.size(); ++r) {
             show_path(pathsin[r], container.m_diff);
+            cout << endl;
         }
     }
 
@@ -206,7 +210,20 @@ void dostep(path_container_autobalance &container, bool savetocache) {
     pathstmp.swap(pathsout);
     container.export_results(pathsout);
 
+    unsigned condcount = 0, mincond = container.pathsout.size() + 1;
+    for (unsigned c = 0; c < container.pathsout.size(); c++) {
+        if (!container.pathsout[c].size()) { continue; }
+        condcount++;
+        if (c < mincond) { mincond = c; }
+    }
+    cout << "Found " << condcount << " different condition counts:" << endl;
+    for (unsigned c = 0; c < container.pathsout.size(); c++) {
+        if (!container.pathsout[c].size()) { continue; }
+        cout << "  count[" << c << "] = " << container.pathsout[c].size() << endl;
+    }
+
     if (pathsout.size() > 0) {
+        cout << "Current mincond = " << mincond << endl;
         show_path(pathsout[0], container.m_diff);
     } else {
         throw std::runtime_error("No valid differential paths found!");
